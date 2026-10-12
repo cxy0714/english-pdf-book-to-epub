@@ -89,20 +89,24 @@ def check(path: pathlib.Path) -> tuple[list[str], list[str], dict]:
         xhtml_files = [name for name in names if name.endswith(".xhtml")]
         for name in xhtml_files:
             raw = archive.read(name)
+            raw_text = raw.decode("utf-8", "replace")
+            # 内容层面的检查只看原始文本，不依赖 XML 是否合法——
+            # 否则一个未转义的 & 会让后面的问题全被遮住。
+            if PLACEHOLDER_RE.search(raw_text):
+                problems.append(f"{name} 残留占位符：{PLACEHOLDER_RE.search(raw_text).group(0)}")
+            if UNKNOWN_GLYPH in raw_text:
+                problems.append(f"{name} 含未映射字形 {UNKNOWN_GLYPH}：{raw_text.count(UNKNOWN_GLYPH)} 处")
+            match = CONTROL_RE.search(raw_text)
+            if match:
+                problems.append(f"{name} 含控制字符 U+{ord(match.group(0)):04X}")
             try:
                 tree = ET.fromstring(raw)
             except ET.ParseError as error:
                 problems.append(f"{name} 不是合法 XML：{error}")
-                continue
-            ids[name] = {element.get("id") for element in tree.iter() if element.get("id")}
-            text = "".join(tree.itertext())
-            if PLACEHOLDER_RE.search(text):
-                problems.append(f"{name} 残留占位符：{PLACEHOLDER_RE.search(text).group(0)}")
-            if UNKNOWN_GLYPH in text:
-                problems.append(f"{name} 含未映射字形 ⬚：{text.count(UNKNOWN_GLYPH)} 处")
-            match = CONTROL_RE.search(text)
-            if match:
-                problems.append(f"{name} 含控制字符 U+{ord(match.group(0)):04X}")
+                text = re.sub(r"<[^>]+>", " ", raw_text)
+            else:
+                ids[name] = {element.get("id") for element in tree.iter() if element.get("id")}
+                text = "".join(tree.itertext())
             cjk = len(CJK_RE.findall(text))
             latin = len(LATIN_WORD_RE.findall(text))
             if name.startswith("OEBPS/text/") and name != "OEBPS/text/titlepage.xhtml":

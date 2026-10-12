@@ -29,6 +29,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, field
 from typing import Any
 
+from . import zh
+
 # 可翻译的块类型；row/equation/figure 与 no_translate 块一律照抄
 TRANSLATABLE = {"part", "heading", "subhead", "paragraph", "list", "caption", "source", "note"}
 MATH_HEAVY = re.compile(r"[∑∫∏√≤≥≠≈∈∀∃∞∂∇⊗⊙→←↔αβγδεζηθικλμνξπρστυφχψωΓΔΘΛΞΠΣΦΨΩ]")
@@ -415,7 +417,7 @@ class Translator:
                     raise MTError(f"缺少 {len(missing)} 条译文：{missing[:8]}")
                 if missing:
                     raise MTError("单条批次仍缺译文")
-                translations = {number: unmask(text, prompt.store) for number, text in raw.items()}
+                translations = {number: zh.normalize(unmask(text, prompt.store)) for number, text in raw.items()}
                 result = BatchResult(
                     batch=working, translations=translations, usage=usage, seconds=time.time() - started
                 )

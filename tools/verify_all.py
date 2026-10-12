@@ -23,10 +23,11 @@ import json
 import pathlib
 import re
 import sys
+from collections import Counter
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bookkit import pairing, textnorm  # noqa: E402
+from bookkit import pairing, textnorm, zh  # noqa: E402
 from bookkit.config import ConfigError, resolve_book  # noqa: E402
 
 CJK_RE = re.compile(r"[\u3400-\u4dbf\u4e00-\u9fff]")
@@ -52,6 +53,7 @@ def main() -> int:
         print(f"配置错误：{exc}")
         return 2
 
+    glossary = book.glossary()
     problems: list[str] = []
     notes: list[str] = []
     print(f"书：{book.slug}（{book.title_en}）")
@@ -79,6 +81,7 @@ def main() -> int:
     problems.extend(pairing.alignment_report(parts))
 
     # 4. 译文文本质量
+    lint_counts: Counter = Counter()
     for part in parts:
         bad_control = bad_glyph = bad_placeholder = 0
         zh_chars = latin_words = 0
@@ -94,6 +97,8 @@ def main() -> int:
                 bad_glyph += 1
             if pairing.PLACEHOLDER_RE.search(text):
                 bad_placeholder += 1
+            for issue in zh.lint(text, pair.en_text, glossary):
+                lint_counts[issue.split("（")[0].split("：")[0]] += 1
             zh_chars += len(CJK_RE.findall(text))
             latin_words += len(LATIN_WORD_RE.findall(text))
         if bad_control:
@@ -117,6 +122,18 @@ def main() -> int:
         else:
             tag = f"zh {ratio:.2f}"
         print(f"  {part.slug:<18} {len(part.pairs):>5} 块  {tag}")
+
+    # 4b. 译文质检汇总
+    if lint_counts:
+        untranslated = lint_counts.get("整块未见汉字", 0)
+        other = sum(count for key, count in lint_counts.items() if key != "整块未见汉字")
+        if untranslated and args.expect_zh:
+            problems.append(f"{untranslated} 块未见汉字（译文可能没生成）")
+        print(f"  译文质检：{len(lint_counts)} 类问题，共 {sum(lint_counts.values())} 处"
+              f"（整块未见汉字 {untranslated}，其余 {other}）")
+        for key, count in lint_counts.most_common(5):
+            print(f"    {key}：{count}")
+        notes.append("译文质检明细见 qa/zh-lint.txt（python tools/lint_zh.py）")
 
     # 5. 交付物
     out = book.out_dir

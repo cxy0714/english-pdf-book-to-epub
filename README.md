@@ -49,6 +49,9 @@ tools/
   build_epub.py          逐块对照稿 → EPUB3（双语 / 纯中文）
   check_epub.py          EPUB 合规与内容完整性校验
   verify_all.py          整本书验收：结构对齐 + 文本质量 + 交付物
+  normalize_zh.py        译文标点/空格规范化（不联网，可反复跑）
+  lint_zh.py             译文质检：未译、术语漏译、标点不配对、译文过短
+  selftest.py            不依赖书数据的自检（含校验器的反例测试）
   bookkit/               核心库（版面解析、文本规范化、翻译接口、EPUB 打包）
 ```
 
@@ -83,6 +86,13 @@ python tools/check_epub.py
 
 # 9. 一条命令验收整本书（结构对齐 + 文本质量 + 交付物）
 python tools/verify_all.py
+
+# 10. 译文标点规范化 / 译文质检（可反复跑，不联网）
+python tools/normalize_zh.py
+python tools/lint_zh.py
+
+# 11. 不依赖书数据的自检（改完代码先跑这个）
+python tools/selftest.py
 ```
 
 ## 设计要点
@@ -102,6 +112,12 @@ python tools/verify_all.py
 **占位符保护。** 脚注角标 `[^n]`、行内公式 `$…$`、图片 `![…](…)` 送翻译前换成
 `[[fn1]]`/`[[m1]]`/`[[img1]]`，译完还原，模型改不动它们。
 
+**译文标点机械化。** 模型给的标点必然不统一（同一段里既可能写 `中文,` 又可能写
+`中文，`）。`bookkit/zh.py` 把可机械判定的部分统一掉——全角标点、中拉空格、脚注角标
+贴紧——但**不改动词句**，也不碰公式括号（`f(x)` 不会被写成 `f（x）`）。改规则后
+`tools/normalize_zh.py` 重跑即可，不必重新调接口。判定不了的（术语漏译、整块未译、
+译文过短）交给 `tools/lint_zh.py` 列出来人工过。
+
 **数学符号自动还原。** 老式 TeX PDF 的数学字体没有 ToUnicode，PyMuPDF 只能给出
 `\x04` 这类控制字符。工具链从字体里取回字形名（PDF 的 `/Encoding /Differences`，
 或 CFF charset），再查字形名→Unicode 表，全自动还原 `∑`、`∈`、`Θ`、`⃗` 等；
@@ -115,7 +131,7 @@ python tools/verify_all.py
   排版上居中显示；需要精确版式时应回看原 PDF。
 - 公式行之后的正文续行会独立成段（公式独立成块所致），质检里单独归类为「预期」。
 - 机器翻译是**初稿**。校订流程：`docs/STYLE.zh.md` 管风格，`glossary.json` 管术语，
-  译完按章人工过一遍。
+  `tools/lint_zh.py` 抖出可疑处，译完按章人工过一遍。
 - 只处理有文字层的 PDF。扫描件需要先 OCR。
 
 ## 交付物
