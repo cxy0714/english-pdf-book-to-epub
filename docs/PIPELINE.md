@@ -13,6 +13,7 @@ PDF ──plan_parts──▶ parts.json ──extract_pdf──▶ build/blocks
         build_epub ──────────────────┴───────────────▶ out/<slug>.{bilingual,zh}.epub
         check_epub ──────────────────────────────────▶ qa/epub-report.txt
         normalize_zh + lint_zh ──────────────────────▶ qa/normalize-zh-report.txt / zh-lint.txt
+        apply_zh ────────────────────────────────────▶ 逐章人工校订（导出/写回 build/zh-blocks.json）
         verify_all ──────────────────────────────────▶ 一条命令验收全文
 ```
 
@@ -38,6 +39,10 @@ PDF 文字层 → 结构化块。要处理的版面问题（都在 `bookkit/pdfe
 | 断词 | 行尾 `-` + 词表判定（见下） |
 | 连字 | `ﬁ ﬂ ﬀ` 等 U+FB00–FB06 还原 |
 | 脚注 | 注区（页面下方 40% 以下）小字号行；正文角标按**上标位置**（中心高于正文行中心 0.12 字号以上）识别，避免误伤 `CO₂` 这类下标 |
+
+**脚注要翻译。** `note` 块曾经被一律标上 `no_translate=True`，等于中文版里所有注释
+（本书 174 条、4.5 万字符）都留英文。现在只有参考文献、索引这类不翻译的篇章才照抄，
+判据与正文一致（`part.kind in ("library", "index")`）。
 | 列表 | 项目符号字体（`LCIRCLE10` 等）起首的行 + 缩进续行 |
 | 表格 | 同一 y 上多个单元格行，按 x 区间重叠聚类成列（表头左对齐、数字右对齐也能对齐） |
 | 段落 | 正文「首行缩进」，参考文献/索引「悬挂缩进」，两种惯例反向处理；跨页不断段 |
@@ -148,6 +153,9 @@ PyMuPDF 读到的字符 ──(/ToUnicode 反查)──▶ 字符码
 - `build_epub.py`：手写 EPUB3（不依赖 ebooklib）。`mimetype` 必须是首个且不压缩的条目；
   每篇一个 XHTML；目录取 H1/H2；脚注篇末成节，正文角标带锚点回链；
   双语版英文用小字灰色跟在中文后面。
+- **语言标记**：双语版里的英文对照、以及中文版里尚未翻译（或本就不翻译）的段落，
+  都会带上 `lang="en"`（`epub.lang_attr()`），CSS 给它们单独的拉丁字体栈。
+  不标的话，阅读器会用中文读音念英文、按中文规则断行，字体也落到中文衬线体上。
 - `check_epub.py`：mimetype 位置与压缩方式、container/OPF 解析、manifest 与 spine 一致性、
   每个 XHTML 能否作为 XML 解析、目录链接与锚点是否都存在、有无残留占位符/控制字符/`▯`，
   并统计汉字占比（纯中文版低于 0.7 会提示可能有大段未翻译内容）。
@@ -171,6 +179,25 @@ PyMuPDF 读到的字符 ──(/ToUnicode 反查)──▶ 字符码
   用了避免用词、括号/引号不配对、ASCII 标点紧贴汉字、译文过短（疑似截断）。
   只查不改，报告 `qa/zh-lint.txt`。
 - `tools/verify_all.py` —— 汇总以上结论加结构对齐，一条命令验收整本。
+
+## 7.5 逐章人工校订 `tools/apply_zh.py`
+
+机器翻译只是初稿，最终由人逐章过。改 `sources/zh/*.md` 会被下一次翻译覆盖，直接改
+`build/zh-blocks.json` 又要手抠 JSON 结构，所以提供往返闭环：
+
+```
+python tools/apply_zh.py --part ch03 --export _scratch/ch03.zh.json   # 导出（键是块下标）
+# 编辑 JSON：只留要改的条目即可，未给出的块保持不变
+python tools/apply_zh.py --part ch03 --from   _scratch/ch03.zh.json   # 写回
+python tools/build_book_md.py && python tools/build_epub.py           # 反映到成品
+```
+
+写回时先跑中文规范化，再顺手跑一遍质检（整块未译、术语漏译、标点不配对……），
+并只动指定篇章。`--export` 也会顺手统计还有多少条没汉字，方便看一章译完没有。
+
+**校订稿属于译文数据，不要入库。** 导出的 JSON 就是一个篇章的中文正文，和
+`sources/zh/*.md` 同级，放进 `_scratch/`（已被忽略）或仓库外的目录。
+`.gitignore` 里也为 `books/*/revisions/` 留了忽略规则，免得误入库。
 
 ## 8. 改代码之后先跑自检
 

@@ -15,6 +15,7 @@ books/*/build/
 books/*/out/
 books/*/qa/
 books/*/images/
+books/*/revisions/
 books/*/*.epub
 books/*/*.md
 # 但以下几类是配置，要入库

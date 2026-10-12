@@ -178,6 +178,25 @@ def main() -> int:
         check("纯中文版校验通过", not zh_problems, str(zh_problems[:3]))
         check(f"纯中文版汉字占比高（{zh_ratio}）", zh_ratio > 0.8, str(zh_report.get("cjk_ratio")))
 
+        print("语言标记（阅读器读音 / 断行 / 字体）")
+        with zipfile.ZipFile(good) as archive:
+            bilingual_xhtml = "\n".join(
+                archive.read(name).decode("utf-8")
+                for name in archive.namelist()
+                if name.startswith("OEBPS/text/")
+            )
+        check(
+            "双语版英文段落标了 lang=en",
+            'class="en" lang="en"' in bilingual_xhtml,
+            "英文对照没有 lang 标记，阅读器会按中文念",
+        )
+        check(
+            "双语版中文段落不标 lang=en",
+            'class="zh" lang="en"' not in bilingual_xhtml,
+            "中文段落被误标成英文",
+        )
+        check("英文对照有拉丁字体栈", "Georgia" in epub.STYLE_CSS)
+
         print("校验器反例（证明「通过」不是假的）")
         for label, injection, keyword in [
             ("未转义 &", "<p>坏 A & B</p>", "合法 XML"),

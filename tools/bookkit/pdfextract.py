@@ -896,9 +896,10 @@ class Extractor:
         flush_paragraph()
         flush_list()
 
-        # 6) 文末注释定义
+        # 6) 文末注释定义。脚注/尾注是正文内容，必须翻译（原来一律标了 no_translate，
+        #    等于中文版里所有注释都留英文）；只有参考文献、索引这类不翻译的篇章才照抄。
         for number in sorted(notes):
-            out.append(Block("note", notes[number], end, slug, number=number, no_translate=True))
+            out.append(Block("note", notes[number], end, slug, number=number, no_translate=no_translate))
         self.stats[f"{slug}:blocks"] = len(out)
         return out, notes
 

@@ -23,6 +23,7 @@ import uuid
 import zipfile
 from dataclasses import dataclass, field
 
+from . import zh
 from .pairing import Pair, Part
 from .textnorm import placeholderize
 
@@ -60,10 +61,12 @@ h1, h2, h3, h4 { font-family: "Heiti SC", "Source Han Sans SC", "Noto Sans CJK S
 h1 { font-size: 1.5em; margin: 1.2em 0 0.6em; }
 h2 { font-size: 1.25em; margin: 1.1em 0 0.5em; }
 h3 { font-size: 1.1em; margin: 1em 0 0.4em; }
-.en-head { color: #666; font-size: 0.82em; font-style: italic; margin: -0.2em 0 0.9em; text-align: left; }
+.en-head { color: #666; font-size: 0.82em; font-style: italic; margin: -0.2em 0 0.9em; text-align: left;
+  font-family: Georgia, "Times New Roman", "Songti SC", serif; }
 p { margin: 0 0 0.55em; }
 p.zh { text-indent: 2em; }
-p.en { color: #555; font-size: 0.86em; line-height: 1.5; text-indent: 0; margin: 0 0 1.1em; }
+p.en { color: #555; font-size: 0.86em; line-height: 1.5; text-indent: 0; margin: 0 0 1.1em;
+  font-family: Georgia, "Times New Roman", "Songti SC", serif; }
 li { margin: 0 0 0.35em; }
 li .en { color: #555; font-size: 0.86em; display: block; }
 figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
@@ -85,6 +88,18 @@ th { background: #f0f0f0; }
 .titlepage .author { margin-top: 2em; font-size: 1.1em; }
 .titlepage .meta { margin-top: 3em; color: #888; font-size: 0.85em; }
 """
+
+
+EN_ATTR = ' lang="en"'
+
+
+def lang_attr(text: str) -> str:
+    """整块没有汉字时标 ``lang="en"``。
+
+    双语版里的英文对照、以及中文版里尚未翻译（或本就不翻译）的段落，都是英文内容；
+    不标语言的话，阅读器会用中文读音念英文、按中文规则断行，字体也会落到中文衬线体上。
+    """
+    return "" if zh.has_cjk(text) else EN_ATTR
 
 
 def inline(text: str, mode: str, zh_first: bool = True) -> str:
@@ -144,23 +159,23 @@ def render_part(part: Part, mode: str) -> Rendered:
             level = min(4, max(1, pair.level + (0 if kind == "part" else 1)))
             text = pair.zh_text if mode != "en" else pair.en_text
             headings.append((level, anchor, text))
-            out.append(f'<h{level} id="{anchor}">{inline(text, mode)}</h{level}>')
+            out.append(f'<h{level} id="{anchor}"{lang_attr(text)}>{inline(text, mode)}</h{level}>')
             if bilingual and pair.en_text and pair.en_text != text:
-                out.append(f'<p class="en-head">{inline(pair.en_text, mode)}</p>')
+                out.append(f'<p class="en-head"{EN_ATTR}>{inline(pair.en_text, mode)}</p>')
         elif kind == "list":
             out.append("<ul>")
             if bilingual:
                 out.append(
                     f'<li><span class="zh">{inline(pair.zh_text, mode)}</span>'
-                    f'<span class="en">{inline(pair.en_text, mode)}</span></li>'
+                    f'<span class="en"{EN_ATTR}>{inline(pair.en_text, mode)}</span></li>'
                 )
             else:
-                out.append(f"<li>{inline(pair.zh_text, mode)}</li>")
+                out.append(f'<li{lang_attr(pair.zh_text)}>{inline(pair.zh_text, mode)}</li>')
             out.append("</ul>")
         elif kind in ("caption", "source"):
-            out.append(f'<p class="caption">{inline(pair.zh_text, mode)}</p>')
+            out.append(f'<p class="caption"{lang_attr(pair.zh_text)}>{inline(pair.zh_text, mode)}</p>')
             if bilingual and pair.en_text:
-                out.append(f'<p class="en">{inline(pair.en_text, mode)}</p>')
+                out.append(f'<p class="en"{EN_ATTR}>{inline(pair.en_text, mode)}</p>')
         elif kind == "figure":
             alt = (pair.en.get("meta") or {}).get("alt") or "figure"
             src = pair.image.split("/")[-1]
@@ -169,16 +184,16 @@ def render_part(part: Part, mode: str) -> Rendered:
                 f"</figure>"
             )
         elif kind == "equation":
-            out.append(f'<div class="eq">{inline(pair.en_text, mode)}</div>')
+            out.append(f'<div class="eq"{EN_ATTR}>{inline(pair.en_text, mode)}</div>')
         elif kind == "note":
             continue  # 篇末统一排
         else:
             if bilingual:
-                out.append(f'<p class="zh">{inline(pair.zh_text, mode)}</p>')
+                out.append(f'<p class="zh"{lang_attr(pair.zh_text)}>{inline(pair.zh_text, mode)}</p>')
                 if pair.en_text and pair.en_text != pair.zh_text:
-                    out.append(f'<p class="en">{inline(pair.en_text, mode)}</p>')
+                    out.append(f'<p class="en"{EN_ATTR}>{inline(pair.en_text, mode)}</p>')
             else:
-                out.append(f'<p class="zh">{inline(pair.zh_text, mode)}</p>')
+                out.append(f'<p class="zh"{lang_attr(pair.zh_text)}>{inline(pair.zh_text, mode)}</p>')
     flush_table()
 
     notes = part.notes
@@ -189,10 +204,10 @@ def render_part(part: Part, mode: str) -> Rendered:
             number = pair.number
             out.append(f'<div class="note" id="fn-{number}">')
             out.append(
-                f'<p><span class="label">[{number}]</span>{inline(pair.zh_text, mode)}</p>'
+                f'<p{lang_attr(pair.zh_text)}><span class="label">[{number}]</span>{inline(pair.zh_text, mode)}</p>'
             )
             if bilingual and pair.en_text:
-                out.append(f'<p class="en">{inline(pair.en_text, mode)}</p>')
+                out.append(f'<p class="en"{EN_ATTR}>{inline(pair.en_text, mode)}</p>')
             out.append("</div>")
         out.append("</section>")
 

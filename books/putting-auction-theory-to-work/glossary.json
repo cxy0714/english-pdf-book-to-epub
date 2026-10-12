@@ -1,5 +1,5 @@
 {
-  "_comment": "本书术语表。terms=限定译法（原文按小写不敏感匹配提示词，仅作提示，不做替换）；names=人名；keep_english=必须保留英文原样；avoid=明确不要用的译法。后续校订时持续补充。",
+  "_comment": "本书术语表。terms=限定译法（原文按小写不敏感匹配提示词，仅作提示，不做替换）；names=人名；keep_english=必须保留英文原样；avoid=明确不要用的译法。后续校订时持续补充。names 段后半是译前言时补入的致谢人名，读音把握不足的（如 Hui Li、Charles Zheng）校订时请复核。",
 
   "terms": {
     "auction": "拍卖",
@@ -144,7 +144,33 @@
     "Lawrence Ausubel": "劳伦斯·奥苏贝尔",
     "Binmore": "宾莫尔",
     "Kreps": "克雷普斯",
-    "Wilson doctrine": "威尔逊准则"
+    "Wilson doctrine": "威尔逊准则",
+
+    "John McMillan": "约翰·麦克米伦",
+    "Charles Plott": "查尔斯·普洛特",
+    "Evan Kwerel": "埃文·克维尔",
+    "Susan Athey": "苏珊·阿西",
+    "Jeremy Bulow": "杰里米·布洛",
+    "David Salant": "戴维·萨兰特",
+    "Ilya Segal": "伊利亚·西格尔",
+    "Steve Tadelis": "史蒂夫·塔德利斯",
+    "Lixin Ye": "叶立新",
+    "Motty Perry": "莫蒂·佩里",
+    "Noam Nisan": "诺姆·尼桑",
+    "Benny Moldovanu": "本尼·莫尔多万努",
+    "Leo Rezende": "莱奥·雷森德",
+    "John Roberts": "约翰·罗伯茨",
+    "Al Roth": "阿尔·罗斯",
+    "Bob Wilson": "鲍勃·威尔逊",
+    "Valter Sorana": "瓦尔特·索拉纳",
+    "Reed Hundt": "里德·亨特",
+    "Karen Wrege": "卡伦·雷格",
+    "James Tuthill": "詹姆斯·塔特希尔",
+    "Eva Meyersson Milgrom": "埃娃·迈耶松·米尔格罗姆",
+    "Parag Pathak": "帕拉格·帕塔克",
+    "Paul Riskind": "保罗·里斯金德",
+    "Hui Li": "李慧",
+    "Larry Ausubel": "拉里·奥苏贝尔"
   },
 
   "keep_english": [

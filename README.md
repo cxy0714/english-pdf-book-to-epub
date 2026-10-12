@@ -51,6 +51,7 @@ tools/
   verify_all.py          整本书验收：结构对齐 + 文本质量 + 交付物
   normalize_zh.py        译文标点/空格规范化（不联网，可反复跑）
   lint_zh.py             译文质检：未译、术语漏译、标点不配对、译文过短
+  apply_zh.py            逐章人工校订：导出译文 JSON、写回（带规范化与质检）
   selftest.py            不依赖书数据的自检（含校验器的反例测试）
   mt_selftest.py         用本地假接口跑通翻译客户端（请求/缓存/重试/拆批/回填）
   bookkit/               核心库（版面解析、文本规范化、翻译接口、EPUB 打包）
@@ -92,7 +93,11 @@ python tools/verify_all.py
 python tools/normalize_zh.py
 python tools/lint_zh.py
 
-# 11. 不依赖书数据的自检（改完代码先跑这个）
+# 11. 逐章人工校订：导出 → 改 JSON → 写回（只动指定篇章）
+python tools/apply_zh.py --part ch03 --export _scratch/ch03.zh.json
+python tools/apply_zh.py --part ch03 --from _scratch/ch03.zh.json
+
+# 12. 不依赖书数据的自检（改完代码先跑这个）
 python tools/selftest.py
 python tools/mt_selftest.py      # 用本地假接口跑通翻译客户端，不花 token
 ```
