@@ -45,7 +45,11 @@ DEFAULT_MT: dict[str, Any] = {
     "concurrency": 3,
     # 批大小按【译文预算】算，而不是按输入块数
     "target_output_chars": 3200,
-    "max_input_chars": 24000,
+    # 单次请求的输入字符上限。这不是模型上下文的天花板，而是「别发出荒唐请求」的
+    # 保险丝：真正的瓶颈在**返回**长度（max_tokens），输入给长一些反而更划算——
+    # 术语表、大纲、前后文在每个请求里都要重复一遍，请求越少总输入越小、跨批断点越少。
+    # 24000 太紧，会把长章切碎，总花费反而上升。
+    "max_input_chars": 60000,
     # 每批附带多少已译前文 / 待译后文，用来维持跨块一致性
     "context_prev_blocks": 8,
     "context_next_blocks": 2,

@@ -105,7 +105,8 @@ class StubBook:
     def __init__(self, root: pathlib.Path):
         self.build_dir = root
         self._glossary = {
-            "terms": {"auction": "拍卖"},
+            "terms": {"auction": "拍卖", "envelope theorem": "包络定理"},
+            "names": {"Milgrom": "米尔格罗姆", "Vickrey": "维克里"},
             "keep_english": ["VCG"],
             "avoid": {"mechanism": "机制（不要译成“机理”）"},
         }
@@ -255,6 +256,12 @@ def main() -> int:
         user = payload["messages"][-1]["content"]
         check("系统提示含风格约定", "学术书面语" in payload["messages"][0]["content"])
         check("提示含术语表", "auction" in user and "拍卖" in user)
+        check("提示含人名表", "Milgrom" in user and "米尔格罗姆" in user)
+        check(
+            "无关术语被过滤掉（省重复开销）",
+            "包络定理" not in user and "维克里" not in user,
+            "envelope theorem / Vickrey 不该出现在这一批的提示里",
+        )
         check("脚注被屏蔽为占位符", "[[fn1]]" in user and "[^1]" not in user, user[-200:])
         check("公式块不进待译条目", "arg max" not in user)
         check("脚注条目要翻译", "See chapter 2." in user)

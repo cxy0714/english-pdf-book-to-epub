@@ -141,6 +141,8 @@ def main() -> int:
     blocks_by_part = load_blocks(book)
     wanted = args.part or [part["slug"] for part in book.content_parts()]
     rows = ["篇章\t块数\t待译\t译文估算字数\t批数\t最大批\t耗时s\tprompt\tcompletion\t状态"]
+    plan_rows = ["篇章\t批号\t条数\t估算译文\t请求字符\t输入上限"]
+    plan_total = {"parts": 0, "batches": 0, "input": 0, "output": 0, "max": 0}
     total_started = time.time()
     exit_code = 0
     zh_payload: dict[str, list[dict]] = {}
@@ -169,15 +171,33 @@ def main() -> int:
                 )
 
         if args.dry_run:
-            prompt = (
-                mt.build_prompt(book, part, blocks, plan[0], book.glossary(), cfg, book.style_guide())
-                if plan
-                else None
-            )
-            if prompt:
-                print(f"  首批请求：system {len(prompt.system)} 字符 / user {len(prompt.user)} 字符")
-                print("  ---- user 前 600 字 ----")
-                print("  " + prompt.user[:600].replace("\n", "\n  "))
+            # 用与实际发送完全相同的规划逻辑（含按输入上限拆批），
+            # 免得「规划时看着没问题、真发出去被接口拒掉」。
+            sized = mt.plan_requests(book, part, blocks, cfg, limit=args.limit)
+            budget = int(cfg.get("max_input_chars") or 0)
+            if not args.quiet:
+                print(f"  实际请求 {len(sized)} 个（按输入上限 {budget} 字符拆批后）")
+            for number, (batch, size) in enumerate(sized, start=1):
+                flag = "超限" if budget and size > budget else "ok"
+                plan_rows.append(
+                    f"{slug}\t{number}\t{len(batch.items)}\t{batch.est_chars}\t{size}\t{flag}"
+                )
+                if budget and size > budget:
+                    exit_code = 1
+            if sized:
+                first_batch, first_size = sized[0]
+                if not args.quiet:
+                    print(f"  首个请求 {first_size} 字符；最大 {max(size for _, size in sized)}（上限 {budget}）")
+                    prompt = mt.build_prompt(
+                        book, part, blocks, first_batch, book.glossary(), cfg, book.style_guide()
+                    )
+                    print("  ---- user 前 400 字 ----")
+                    print("  " + prompt.user[:400].replace("\n", "\n  "))
+            plan_total["parts"] += 1
+            plan_total["batches"] += len(sized)
+            plan_total["input"] += sum(size for _, size in sized)
+            plan_total["output"] += estimated
+            plan_total["max"] = max(plan_total["max"], max((size for _, size in sized), default=0))
             rows.append(f"{slug}\t{len(blocks)}\t{len(translatable)}\t{estimated}\t{len(plan)}\t-\t-\t-\t-\tdry-run")
             continue
 
@@ -227,6 +247,28 @@ def main() -> int:
 
     report = book.qa_dir / "mt-report.txt"
     report.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    if args.dry_run and plan_total["batches"]:
+        # 粗略换算：请求以英文原文为主，约 3 字符/token；中文译文约 1.4 字/token
+        input_tokens = plan_total["input"] / 3
+        output_tokens = plan_total["output"] / 1.4
+        plan_rows.append("")
+        plan_rows.append(
+            f"合计\t{plan_total['batches']} 批\t—\t{plan_total['output']:,} 字\t"
+            f"{plan_total['input']:,} 字符\t上限 {cfg.get('max_input_chars')}，最大请求 {plan_total['max']}"
+        )
+        plan_rows.append(
+            f"粗略估算\t—\t—\t约 {output_tokens:,.0f} output tokens\t"
+            f"约 {input_tokens:,.0f} input tokens\t按 3 字符/token 与 1.4 字/token 折算"
+        )
+        plan_path = book.qa_dir / "mt-plan.txt"
+        plan_path.write_text("\n".join(plan_rows) + "\n", encoding="utf-8")
+        if not args.quiet:
+            print(
+                f"\n规划：{plan_total['batches']} 个请求，请求合计 {plan_total['input']:,} 字符"
+                f"（≈{input_tokens:,.0f} input tokens），译文估算 {plan_total['output']:,} 字"
+                f"（≈{output_tokens:,.0f} output tokens），最大单请求 {plan_total['max']} 字符"
+            )
+            print(f"规划明细：{plan_path}")
     if zh_payload:
         ordered = [part["slug"] for part in book.content_parts() if part["slug"] in zh_payload]
         zh_blocks_path.write_text(

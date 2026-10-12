@@ -103,6 +103,68 @@ def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = No
     return batches
 
 
+def prompt_size(book, part: dict, blocks: list[dict], batch: Batch, glossary, cfg, style: str = "") -> int:
+    """一次请求的字符数（system + user）。"""
+    prompt = build_prompt(book, part, blocks, batch, glossary, cfg, style)
+    return len(prompt.system) + len(prompt.user)
+
+
+def fit_input_budget(
+    book,
+    part: dict,
+    blocks: list[dict],
+    batches: list[Batch],
+    glossary,
+    cfg,
+    style: str = "",
+    log=None,
+) -> list[Batch]:
+    """按接口输入长度上限继续拆批。
+
+    `plan_batches` 只管译文预算（输出侧）；输入侧还受 `max_input_chars` 约束：
+    术语表、全章大纲、前后文各占一大块，批本身正文越大越可能撞上限。超限的请求会被
+    接口直接拒掉，所以必须在发出去之前拆开——不能等跑到一半才发现。
+    """
+    budget = int(cfg.get("max_input_chars") or 0)
+    if budget <= 0:
+        return batches
+    fitted: list[Batch] = []
+    queue = list(batches)
+    splits = 0
+    while queue:
+        batch = queue.pop(0)
+        size = prompt_size(book, part, blocks, batch, glossary, cfg, style)
+        if size <= budget or len(batch.items) <= 1:
+            if size > budget and log:
+                log(f"    ! 单条条目请求仍超输入上限（{size} > {budget} 字符），接口可能拒绝")
+            fitted.append(batch)
+            continue
+        splits += 1
+        half = len(batch.items) // 2
+        queue.insert(0, Batch(items=batch.items[half:], est_chars=0))
+        queue.insert(0, Batch(items=batch.items[:half], est_chars=0))
+    if splits and log:
+        log(f"  按输入上限拆批 {splits} 次：{len(batches)} → {len(fitted)} 批")
+    fitted.sort(key=lambda item: item.items[0].block)
+    return fitted
+
+
+def plan_requests(book, part: dict, blocks: list[dict], cfg, limit: int | None = None,
+                  glossary=None, style: str = "") -> list[tuple[Batch, int]]:
+    """完整规划一篇的请求：先按译文预算切批，再按输入上限拆批。
+
+    返回 ``[(批, 请求字符数)]``。`--dry-run` 与成本估算都用它，保证「看到的就是
+    真要发出去的」——两边用同一套切批逻辑，不各算一遍。
+    """
+    glossary = book.glossary() if glossary is None else glossary
+    style = style or book.style_guide()
+    batches = plan_batches(blocks, cfg, limit=limit)
+    batches = fit_input_budget(book, part, blocks, batches, glossary, cfg, style)
+    return [
+        (batch, prompt_size(book, part, blocks, batch, glossary, cfg, style)) for batch in batches
+    ]
+
+
 # ---------------------------------------------------------------------------
 # 占位符保护
 # ---------------------------------------------------------------------------
@@ -162,7 +224,44 @@ SYSTEM_PROMPT = """你是经济学与博弈论领域的学术译者，正在把 
 """
 
 
-def format_glossary(glossary: dict[str, Any]) -> str:
+WORD_BOUNDARY = r"(?<![A-Za-z]){}(?![A-Za-z])"
+
+
+def glossary_hits(glossary: dict[str, Any], text: str) -> dict[str, int]:
+    """统计术语表里哪些条目在该文本中出现了，返回 ``{条目: 出现次数}``。"""
+    hits: dict[str, int] = {}
+    if not text:
+        return hits
+    for section in ("terms", "names", "avoid"):
+        for key in (glossary.get(section) or {}):
+            found = re.findall(WORD_BOUNDARY.format(re.escape(key)), text, re.IGNORECASE)
+            if found:
+                hits[key] = len(found)
+    for key in glossary.get("keep_english") or []:
+        if re.search(WORD_BOUNDARY.format(re.escape(str(key))), text, re.IGNORECASE):
+            hits[str(key)] = 1
+    return hits
+
+
+def format_glossary(glossary: dict[str, Any], relevant: str | None = None) -> str:
+    """把术语表渲染成提示词片段。
+
+    ``relevant`` 给出一段文本时，只保留**在这段文本里真的出现**的条目。整份术语表
+    每个请求都重复一遍是最贵的一笔开销（本书 3.7k 字符 × 80+ 请求），而绝大多数
+    条目跟当前这一批毫不相干；按需过滤既省钱又不影响一致性——某批里出现了某个术语，
+    它的定译就一定会带上。
+    """
+    if relevant is not None:
+        hits = glossary_hits(glossary, relevant)
+        if not hits:
+            return ""
+        glossary = {
+            "terms": {k: v for k, v in (glossary.get("terms") or {}).items() if k in hits},
+            "names": {k: v for k, v in (glossary.get("names") or {}).items() if k in hits},
+            "avoid": {k: v for k, v in (glossary.get("avoid") or {}).items() if k in hits},
+            "keep_english": [k for k in (glossary.get("keep_english") or []) if str(k) in hits],
+        }
+
     lines: list[str] = []
     terms = glossary.get("terms") or {}
     if terms:
@@ -182,7 +281,8 @@ def format_glossary(glossary: dict[str, Any]) -> str:
     if avoid:
         lines.append("【不要这样译】")
         for source, target in avoid.items():
-            lines.append(f"  {source} => 不要译成“{target}”")
+            # avoid 的值本身就是完整说明（如「机制（不要译成“机理”）」），原样给模型
+            lines.append(f"  {source} => {target}")
     return "\n".join(lines)
 
 
@@ -225,32 +325,42 @@ def build_prompt(
         brief = chapter_brief(part, blocks)
         if brief:
             pieces.append(brief)
-    if cfg.get("glossary_in_prompt", True):
-        text = format_glossary(glossary)
-        if text:
-            pieces.append(text)
 
     first, last = batch.items[0].block, batch.items[-1].block
     prev_count = int(cfg.get("context_prev_blocks", 0))
     next_count = int(cfg.get("context_next_blocks", 0))
+    previous: list[dict] = []
     if prev_count:
         previous = [blocks[i] for i in range(max(0, first - prev_count), first) if is_translatable(blocks[i])]
-        if previous:
-            lines = ["【前文（英文，仅供衔接语气与指代，不要翻译）】"]
-            for offset, block in enumerate(previous, start=1):
-                lines.append(f"  ({offset}) {block['text'][:600]}")
-            pieces.append("\n".join(lines))
+    following: list[dict] = []
     if next_count:
         following = [
             blocks[i]
             for i in range(last + 1, min(len(blocks), last + 1 + next_count * 3))
             if is_translatable(blocks[i])
         ][:next_count]
-        if following:
-            lines = ["【后文（英文，仅供衔接，不要翻译）】"]
-            for offset, block in enumerate(following, start=1):
-                lines.append(f"  <{offset}> {block['text'][:600]}")
-            pieces.append("\n".join(lines))
+
+    if cfg.get("glossary_in_prompt", True):
+        # 只把「这一批加上前后文里真的出现」的条目写进提示词：
+        # 整份术语表逐请求重复是最贵的一笔开销，而无关条目只是噪音。
+        relevant_text = " ".join(
+            [blocks[item.block].get("text") or "" for item in batch.items]
+            + [block.get("text") or "" for block in previous + following]
+        )
+        text = format_glossary(glossary, relevant=relevant_text)
+        if text:
+            pieces.append(text)
+
+    if previous:
+        lines = ["【前文（英文，仅供衔接语气与指代，不要翻译）】"]
+        for offset, block in enumerate(previous, start=1):
+            lines.append(f"  ({offset}) {block['text'][:600]}")
+        pieces.append("\n".join(lines))
+    if following:
+        lines = ["【后文（英文，仅供衔接，不要翻译）】"]
+        for offset, block in enumerate(following, start=1):
+            lines.append(f"  <{offset}> {block['text'][:600]}")
+        pieces.append("\n".join(lines))
 
     lines = [f"【待译条目】共 {len(batch.items)} 条，请逐条按 [B编号] 输出。"]
     for item in batch.items:
@@ -468,7 +578,13 @@ class Translator:
         不是 ``[Bn]`` 里的批内序号。多批时各批的 ``[B1]`` 会重复，必须用
         ``Item.block`` 映射回去，否则译文会互相覆盖、错位到别的块上。
         """
-        batches = plan_batches(blocks, self.cfg, limit=limit)
+        batches = [
+            batch
+            for batch, _ in plan_requests(
+                self.book, part, blocks, self.cfg, limit=limit,
+                glossary=self.glossary, style=self.style,
+            )
+        ]
         results: list[BatchResult] = []
         merged: dict[int, str] = {}
 
