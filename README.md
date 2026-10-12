@@ -88,6 +88,8 @@ python tools/check_epub.py
 
 # 9. 一条命令验收整本书（结构对齐 + 文本质量 + 交付物）
 python tools/verify_all.py
+# 逐章校订期间只卡已译篇章，其余篇章按排练态提示、不报错：
+python tools/verify_all.py --expect-zh front,ch01
 
 # 10. 译文标点规范化 / 译文质检（可反复跑，不联网）
 python tools/normalize_zh.py

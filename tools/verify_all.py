@@ -44,8 +44,32 @@ def md_lines(path: pathlib.Path) -> list[str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="整本书验收")
     parser.add_argument("--book", help="书目录名；只有一本书时可以省略")
-    parser.add_argument("--expect-zh", action="store_true", help="要求译文确实是中文（不允许 --mirror 产物）")
+    parser.add_argument(
+        "--expect-zh",
+        nargs="?",
+        const="*",
+        default=None,
+        help="要求译文确实是中文（不允许多为 --mirror 排练产物）。可给篇章列表："
+        "--expect-zh front,ch01；不给值则要求全书。逐章校订时用列表只卡已译篇章",
+    )
     args = parser.parse_args()
+
+    if args.expect_zh is None:
+        expect_parts: set[str] = set()
+        expect_all = False
+    elif args.expect_zh.strip() in ("", "*"):
+        expect_parts = set()
+        expect_all = True
+    else:
+        expect_parts = {item.strip() for item in args.expect_zh.split(",") if item.strip()}
+        expect_all = False
+
+    def expects(slug: str) -> bool:
+        return expect_all or slug in expect_parts
+
+    if expect_parts or expect_all:
+        scope = "全书" if expect_all else "、".join(sorted(expect_parts))
+        print(f"要求中文化的篇章：{scope}")
 
     try:
         book = resolve_book(args.book)
@@ -82,6 +106,7 @@ def main() -> int:
 
     # 4. 译文文本质量
     lint_counts: Counter = Counter()
+    untranslated_by_part: Counter = Counter()
     for part in parts:
         bad_control = bad_glyph = bad_placeholder = 0
         zh_chars = latin_words = 0
@@ -98,7 +123,10 @@ def main() -> int:
             if pairing.PLACEHOLDER_RE.search(text):
                 bad_placeholder += 1
             for issue in zh.lint(text, pair.en_text, glossary):
-                lint_counts[issue.split("（")[0].split("：")[0]] += 1
+                key = issue.split("（")[0].split("：")[0]
+                lint_counts[key] += 1
+                if key == "整块未见汉字":
+                    untranslated_by_part[part.slug] += 1
             zh_chars += len(CJK_RE.findall(text))
             latin_words += len(LATIN_WORD_RE.findall(text))
         if bad_control:
@@ -115,7 +143,7 @@ def main() -> int:
             notes.append(f"{part.slug}: 还没有译文（先跑 translate_mt.py）")
         elif ratio < 0.5 and part.kind != "library":
             message = f"{part.slug}: 汉字占比仅 {ratio:.2f}（汉字 {zh_chars} / 英文词 {latin_words}）"
-            if args.expect_zh:
+            if expects(part.slug):
                 problems.append(message + "，译文可能没生成")
             else:
                 notes.append(message + "，疑似 --mirror 排练产物")
@@ -127,10 +155,20 @@ def main() -> int:
     if lint_counts:
         untranslated = lint_counts.get("整块未见汉字", 0)
         other = sum(count for key, count in lint_counts.items() if key != "整块未见汉字")
-        if untranslated and args.expect_zh:
-            problems.append(f"{untranslated} 块未见汉字（译文可能没生成）")
+        expected_untranslated = sum(
+            count for slug, count in untranslated_by_part.items() if expects(slug)
+        )
+        if expected_untranslated:
+            worst = "、".join(
+                f"{slug} {count}"
+                for slug, count in untranslated_by_part.most_common()
+                if expects(slug)
+            )
+            problems.append(f"{expected_untranslated} 块未见汉字（译文可能没生成：{worst}）")
         print(f"  译文质检：{len(lint_counts)} 类问题，共 {sum(lint_counts.values())} 处"
               f"（整块未见汉字 {untranslated}，其余 {other}）")
+        if expect_parts or expect_all:
+            print(f"    其中「要求中文化」的篇章里未见汉字 {expected_untranslated} 块")
         for key, count in lint_counts.most_common(5):
             print(f"    {key}：{count}")
         notes.append("译文质检明细见 qa/zh-lint.txt（python tools/lint_zh.py）")
