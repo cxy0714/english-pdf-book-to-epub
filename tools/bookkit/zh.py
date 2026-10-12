@@ -15,8 +15,12 @@ from __future__ import annotations
 
 import re
 
+from . import textnorm
+
 CJK_CLASS = r"\u3400-\u4dbf\u4e00-\u9fff"
 CJK_PUNCT_CLASS = r"\u3000-\u303f\uff01-\uff60\uffe0-\uffe6"
+# 译文里连续的英文单词串（≥6 个词）——多半是漏译半句（术语/机构名一般 1–3 个词）
+LATIN_RUN_RE = re.compile(r"[A-Za-z][A-Za-z'’\-]*(?:\s+(?:[A-Za-z][A-Za-z'’\-]*|of|the|and|for|in|on|to)){5,}")
 CJK_RE = re.compile(rf"[{CJK_CLASS}]")
 CJK_OR_PUNCT_RE = re.compile(rf"[{CJK_CLASS}{CJK_PUNCT_CLASS}]")
 LATIN_RE = re.compile(r"[A-Za-z]")
@@ -153,7 +157,15 @@ def lint(text: str, source: str = "", glossary: dict | None = None) -> list[str]
         return ["译文为空"]
 
     if not has_cjk(text):
-        if len(re.findall(r"[A-Za-z]{2,}", text)) >= 5:
+        # 只有**真句子**才算「该译却没译」。碎片（`(3.10) 0`、`MRi (si)`、书目行、
+        # 被拆出来的两三个词）本来就没有中文可写，报出来只会淹没真正的问题。
+        if source and (
+            textnorm.looks_like_reference(source)
+            or textnorm.looks_like_math(source)
+            or textnorm.looks_like_debris(source)
+        ):
+            return issues
+        if len(re.findall(r"[A-Za-z]{2,}", text)) >= 5 and len(textnorm.prose_words(text)) >= 3:
             issues.append("整块未见汉字（可能没翻译）")
         return issues
 
@@ -169,6 +181,13 @@ def lint(text: str, source: str = "", glossary: dict | None = None) -> list[str]
         issues.append("中文引号不配对")
     if re.search(r"[\u4e00-\u9fff]{40,}", text):
         issues.append("超长汉字串（可能漏了空格或标点）")
+
+    # 译文里夹着成串英文：整块没译有「整块未见汉字」管着，但**半句没译**看不出来——
+    # 真出现过：一句话前半译了、后半原样留着英文。要求保留英文的术语/机构名一般是
+    # 1–3 个词，连续 6 个词以上的英文串基本就是漏译。
+    for run in LATIN_RUN_RE.findall(text):
+        issues.append(f"译文夹着成串英文（疑似漏译半句）：「{run[:40].strip()}」")
+        break
 
     source_words = len(re.findall(r"[A-Za-z]{2,}", source or ""))
     cjk_chars = len(CJK_RE.findall(text))

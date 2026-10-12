@@ -65,6 +65,11 @@ class Handler(http.server.BaseHTTPRequestHandler):
 
         user = payload["messages"][-1]["content"]
         review = "【待审条目】" in user
+        # 模拟网关超时（HTTP 524）：条目多于 4 条的请求一律超时。真实接口就是这样把
+        # 「整章一次翻完」的大请求掐死的（9,399 字的整章请求重试四次、白等 15 分钟）。
+        if STATE.mode == "gateway" and len(ITEM_RE.findall(user)) > 4:
+            self._send(524, {"error": {"message": "openai_error", "type": "bad_response_status_code"}})
+            return
         lines: list[str] = []
         first_request = len(STATE.requests) == 1
         for number, text in ITEM_RE.findall(user):
@@ -431,6 +436,45 @@ def main() -> int:
         cached_issues, cached_reviewed = translator5.review_part(review_part, review_blocks, zh_texts)
         check("审校命中缓存", len(STATE.requests) == 0, f"{len(STATE.requests)} 个请求")
         check("缓存返回同样结果", cached_issues == issues)
+
+        print("网关超时应拆批而不是原地重试")
+        STATE.reset()
+        STATE.mode = "gateway"
+        cfg_gw = dict(cfg)
+        cfg_gw["retries"] = 2
+        cfg_gw["max_tokens"] = 8192  # 抬高天花板，让样本先被排成一个大批
+        cfg_gw["target_output_chars"] = 5000
+        logs_gw: list[str] = []
+        translator6 = mt.Translator(book, cfg_gw, logger=logs_gw.append)
+        translator6.cache_dir = root / "cache6"
+        translator6.cache_dir.mkdir(parents=True, exist_ok=True)
+        part_gw, blocks_gw = long_sample()  # 13 块，切成 1 批 → 网关必超时
+        plan_gw = mt.plan_batches(blocks_gw, cfg_gw)
+        check("样本先被排成一个大批", len(plan_gw) == 1, f"{len(plan_gw)} 批")
+        gw_translations, gw_results = translator6.translate_part(part_gw, blocks_gw)
+        check("拆批后译文齐全", len(gw_translations) == len(blocks_gw), f"{len(gw_translations)} / {len(blocks_gw)}")
+        check("拆批后没有失败批次", not [r for r in gw_results if r.error], str([r.error for r in gw_results if r.error]))
+        sizes = [len(ITEM_RE.findall(r["messages"][-1]["content"])) for r in STATE.requests]
+        check("没有第二次发同样大的请求", sizes.count(sizes[0]) == 1, f"请求条数序列 {sizes}")
+        check(
+            "超时后走的是拆批提示",
+            any("请求过大" in line or "拆批" in line for line in logs_gw),
+            str(logs_gw[:4]),
+        )
+        STATE.mode = "ok"
+
+        print("单请求译文长度硬上限")
+        many = [{"type": "paragraph", "text": "The auction is efficient and the bidder profits. " * 12} for _ in range(20)]
+        cfg_cap = dict(cfg)
+        cfg_cap["target_output_chars"] = 400
+        cfg_cap["max_batch_output_chars"] = 500
+        capped = mt.plan_batches(many, cfg_cap)
+        check("整章放行也受硬上限约束", len(capped) > 1, f"{len(capped)} 批")
+        check(
+            "每批不超过硬上限（允许单块超限）",
+            all(b.est_chars <= 500 or len(b.items) == 1 for b in capped),
+            str([b.est_chars for b in capped]),
+        )
 
         print("端到端（真跑一次 CLI，用假接口）")
         end_to_end(base_url)

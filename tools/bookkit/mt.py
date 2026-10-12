@@ -66,7 +66,7 @@ class Batch:
 
 
 def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = None) -> list[Batch]:
-    """按译文预算切批。整章能一次装下就一次装下。
+    """按译文预算切批。整章能一次装下就一次装下，但不能超过单请求的生成上限。
 
     ``limit`` 只取前 N 条待译块（冒烟测试用）——必须在**切批之前**就砍掉，
     否则请求里仍会带上全部条目，`--limit` 省不了钱。
@@ -75,6 +75,10 @@ def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = No
     max_tokens = int(cfg.get("max_tokens", 8192))
     # 一次返回的安全上限：中文约 1.4 汉字/token，留 25% 余量
     ceiling = int(max_tokens * 1.4 * 0.75)
+    # 「整章一次装下」最多放宽到 3 倍预算，但绝对不许超过 max_batch_output_chars：
+    # 生成耗时随译文长度增长，网关会先把长请求掐死。实测同一本书里 3,100 字的批
+    # 60–180s 正常，而 9,399 字的整章请求被 HTTP 524 打掉（重试四次、白等 15 分钟）。
+    hard_cap = int(cfg.get("max_batch_output_chars") or 0) or ceiling
     indices = [i for i, block in enumerate(blocks) if is_translatable(block)]
     if limit is not None:
         indices = indices[:limit]
@@ -82,7 +86,7 @@ def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = No
     total = sum(estimates.values())
 
     batches: list[Batch] = []
-    if total <= min(target * 3, ceiling):
+    if total <= min(target * 3, hard_cap, ceiling):
         batch = Batch()
         for i in indices:
             batch.items.append(Item(len(batch.items) + 1, i, blocks[i]["text"]))
@@ -438,6 +442,8 @@ def build_prompt(
 
 MARKER_RE = re.compile(r"^\s*\[\s*B\s*(\d+)\s*\]\s*(.*)$")
 FENCE_RE = re.compile(r"^\s*```")
+# 网关层超时/不可用：多为「请求太大太慢被掐」，按拆批处理而不是原地重试
+GATEWAY_TIMEOUT_RE = re.compile(r"HTTP (?:524|504|502|503)\b")
 # 行首的类型标记是给模型看的元信息（（标题）（脚注）…）。模型有时会把它照抄进译文，
 # 那就成了成书里的正文——必须剥掉。中文括号与方括号两种写法都认。
 TYPE_TAG_RE = re.compile(
@@ -716,9 +722,20 @@ class Translator:
                 last_error = str(error)
                 if attempt > int(self.cfg.get("retries", 4)):
                     break
-                if "缺少" in last_error and len(working.items) > 1:
-                    # 拆批重试：把当前批一分为二，分别翻
+                too_big = GATEWAY_TIMEOUT_RE.search(last_error) and len(working.items) > 4
+                if too_big:
+                    # 网关超时（524/504…）几乎总是「这个请求太大/太久」而不是抖动：
+                    # 原样重试只会再等一遍（实测整章请求重试四次、白等 15 分钟）。
+                    # 直接拆批。
+                    self.log(f"    ! {last_error[:60]}（请求过大），立即拆批重试")
+                elif "缺少" not in last_error:
+                    wait = min(2 ** attempt, 30)
+                    self.log(f"    ! 第 {attempt} 次失败：{last_error[:120]}；{wait}s 后重试")
+                    time.sleep(wait)
+                    continue
+                else:
                     self.log(f"    ! {last_error}，拆批重试")
+                if len(working.items) > 1:
                     half = len(working.items) // 2
                     left = Batch(items=working.items[:half], est_chars=0)
                     right = Batch(items=working.items[half:], est_chars=0)

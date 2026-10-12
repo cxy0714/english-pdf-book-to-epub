@@ -1,18 +1,19 @@
 {
   "_comment": "全局翻译接口配置模板。复制成 config/mt.local.json 并把 key 填进 api_key 即可；本地文件已被 .gitignore 忽略，不会入库。也可以用环境变量 MOYU_API_KEY / MT_API_KEY。单项覆盖可以写在 books/<slug>/mt.local.json 里。",
-  "_comment_batching": "批大小不按块数/字符数硬切，而是按【译文预算】自动算：短章整章一次翻完，长章按 target_output_chars 切块，并在每次请求里附上全章大纲、术语表和已译前文，保证一致性。max_input_chars 是「别发出荒唐请求」的保险丝，不是模型上限——输入给长一些更省钱（重复开销更少），真正的瓶颈是 max_tokens 管的返回长度。context_prev_zh 打开时，前文语境会给出「已译中文 + 英文原文」，本篇各批因此按顺序翻译（并发降为 1）。",
+  "_comment_batching": "批大小不按块数/字符数硬切，而是按【译文预算】自动算：短章整章一次翻完，长章按 target_output_chars 切块，并在每次请求里附上全章大纲、术语表和已译前文，保证一致性。max_input_chars 是「别发出荒唐请求」的保险丝，不是模型上限——输入给长一些更省钱（重复开销更少），真正的瓶颈是 max_tokens 管的返回长度。context_prev_zh 打开时，前文语境会给出「已译中文 + 英文原文」，本篇各批因此按顺序翻译（并发降为 1）。max_batch_output_chars 是【单请求译文长度硬上限】：网关在 300 秒左右会甩 HTTP 524，实测一次要 9000+ 汉字的请求必超时，所以长章会主动拆批（这批超时也会自动二分重试）。",
 
   "base_url": "https://moyu.cn/v1",
   "model": "DeepSeek-V4.1-flash",
   "api_key": "",
 
   "temperature": 0.15,
-  "max_tokens": 16384,
+  "max_tokens": 32768,
   "timeout": 600,
   "retries": 4,
   "concurrency": 3,
 
   "target_output_chars": 3200,
+  "max_batch_output_chars": 5600,
   "max_input_chars": 60000,
   "context_prev_blocks": 8,
   "context_next_blocks": 2,

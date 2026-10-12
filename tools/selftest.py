@@ -23,7 +23,7 @@ import zipfile
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import check_epub  # noqa: E402
-from bookkit import epub, mt, pairing, zh  # noqa: E402
+from bookkit import epub, mt, pairing, textnorm, zh  # noqa: E402
 from build_book_md import render_book  # noqa: E402
 
 RESULTS: list[tuple[str, bool, str]] = []
@@ -165,6 +165,81 @@ def main() -> int:
     check("小写 us 不会误命中 US", "us" not in {k.lower() for k in hits} - {"us"}, str(sorted(hits)))
     check("小写单词条目仍然不区分大小写", hits.get("auction") == 1, str(hits))
     check("keep_english 也不误命中", "fcc" not in hits, str(sorted(hits)))
+
+    print("公式块补判（段落 → equation）")
+    math_cases = [
+        ("π (p) = π (0, p−1) +", True),
+        ("x∗", True),
+        ("q*", True),
+        ("(3.4)", True),
+        ("V (t) = sup", True),
+        ("1 (s, p−1) ds.", True),
+        ("E [u i (x(σ (t⃗)), y)|t j] = E [E [uˆj (x, y)|t⃗]|t j]", True),
+        ("f (xi, xˆ j, x−i j) f (xˆi, xj, x−i j) ≤ f (xi, xj, x−i j)", True),
+        # 下面这些**不能**当公式：里面有真句子/真散文，当公式就等于丢掉半句译文
+        ("4", False),
+        ("is", False),
+        ("theorem, V I ′ (s) = F2(s|s)(v˜(s, s) − B(s, s))", False),
+        ("By the envelope theorem, V F ′ (s) = F2(s|s)(v˜(s, s) − β F (s))", False),
+        ("is, 0 b(s) ds < ∞) such that |u2(x, t)| ≤ b(t) for all x ∈ X", False),
+        ("Then if β¯i (xi) = 0 we have β¯i (xi) ≤ βi (xi), so", False),
+        ("The firm’s choice is efficient.", False),
+        ("12,345 6,789", False),
+    ]
+    wrong = [
+        f"{text!r} → {textnorm.looks_like_math(text)}（应为 {expected}）"
+        for text, expected in math_cases
+        if textnorm.looks_like_math(text) != expected
+    ]
+    check("公式判定正例反例全对", not wrong, "; ".join(wrong))
+    demo = [
+        {"type": "paragraph", "text": "π (p) = π (0, p−1) +"},
+        {"type": "paragraph", "text": "The auction is efficient."},
+        {"type": "paragraph", "text": "x∗"},
+    ]
+    changed_indices = textnorm.retype_math_blocks(demo)
+    check("只改公式块并标为不译", changed_indices == [0, 2], str(changed_indices))
+    check("改动块带上 no_translate", demo[0]["type"] == "equation" and demo[0]["no_translate"] is True)
+    check("散文块原样不动", demo[1]["type"] == "paragraph" and "no_translate" not in demo[1])
+
+    print("参考文献与碎片不该送去翻译")
+    ref_cases = [
+        ("Akerlof, George (1970). “The Market for ‘Lemons’: Quality Uncertainty", True),
+        ("Market Mechanism.” Quarterly Journal of Economics 84: 488–500. Cremer, Jacques", True),
+        ("Bayesian Players (Parts I–III).” Management Science 14: 159–182, 320–334.", True),
+        # 正文里引用文献的句子**不能**算条目，否则会把定理证明整段吞掉
+        ("Laffont, Ossard, and Vuong (1995) used the inversion technique to estimate", False),
+        ("The version of theorem 2.3 was first proved by Holmstrom (1979), who generalized", False),
+        ("Demange, Gale, and Sotomayor (1986) devised a theoretically robust way", False),
+        ("By the envelope theorem, V F ′ (s) = F2(s|s)(v˜(s, s) − β F (s))", False),
+    ]
+    wrong = [
+        f"{text[:40]!r} → {textnorm.looks_like_reference(text)}（应为 {expected}）"
+        for text, expected in ref_cases
+        if textnorm.looks_like_reference(text) != expected
+    ]
+    check("参考文献判定正例反例全对", not wrong, "; ".join(wrong))
+    check("标点碎片认作碎片", textnorm.looks_like_debris("(") and textnorm.looks_like_debris("]"))
+    check("正常文本不是碎片", not textnorm.looks_like_debris("auction"))
+
+    section = [
+        {"type": "heading", "text": "REFERENCES"},
+        {"type": "paragraph", "text": "Akerlof, George (1970). “The Market for ‘Lemons’”"},
+        {"type": "paragraph", "text": "Goeree,"},  # 被拆碎的续行
+        {"type": "paragraph", "text": "Jacob"},
+        {"type": "note", "text": "Some note."},
+        {"type": "paragraph", "text": "After the notes, real prose again."},
+        {"type": "paragraph", "text": "("},
+    ]
+    marked = textnorm.retype_nonprose_blocks(section)
+    check("标题后整段算参考文献", marked["reference"] == [1, 2, 3], str(marked["reference"]))
+    check("注释区终止参考文献区", "no_translate" not in section[5], str(section[5]))
+    check("碎片单独归类", marked["debris"] == [6], str(marked["debris"]))
+    check(
+        "Block 对象也能处理",
+        textnorm.retype_nonprose_blocks([type("B", (), {"type": "paragraph", "text": "x∗ = π (0, p−1)", "no_translate": False})()])["equation"] == [0],
+    )
+    check("两字符碎片归为碎片", textnorm.retype_nonprose_blocks([{"type": "paragraph", "text": "x∗"}])["debris"] == [0])
 
     root = pathlib.Path(tempfile.mkdtemp(prefix="bookkit-selftest-"))
     try:

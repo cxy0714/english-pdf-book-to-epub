@@ -86,6 +86,15 @@ def main() -> int:
     result = extractor.run()
 
     # --- 写出 ---
+    # 逐行判据偶尔漏掉展示公式，章末参考文献也常以「段落」身份进来，按内容再判一次：
+    # 公式改成 equation（中英共用一份、不重复印），参考文献/标点碎片标成不译。
+    retyped: dict[str, int] = {}
+    for blocks in result.blocks.values():
+        for kind, indices in textnorm.retype_nonprose_blocks(blocks).items():
+            retyped[kind] = retyped.get(kind, 0) + len(indices)
+    if retyped:
+        summary = "、".join(f"{kind} {count}" for kind, count in retyped.items() if count)
+        print(f"按内容补判：{summary}")
     blocks_payload = {
         "book": {
             "slug": book.slug,
