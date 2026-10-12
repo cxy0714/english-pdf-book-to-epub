@@ -23,7 +23,7 @@ import zipfile
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
 import check_epub  # noqa: E402
-from bookkit import epub, pairing, zh  # noqa: E402
+from bookkit import epub, mt, pairing, zh  # noqa: E402
 from build_book_md import render_book  # noqa: E402
 
 RESULTS: list[tuple[str, bool, str]] = []
@@ -137,6 +137,17 @@ def main() -> int:
     check("检出整块未翻译", "整块未见汉字" in " ".join(zh.lint("This is a whole English paragraph with words.")))
     check("检出术语未译", any("术语未译" in item for item in zh.lint("收益 auction 上升。", "", {"terms": {"auction": "拍卖"}})))
     check("干净译文不报错", zh.lint("设 x 是类型，收益为 v(x)。") == [])
+
+    print("部分校订合并")
+    existing = {0: "第零块", 1: "第一块", 2: "第二块"}
+    patched = mt.merge_partial(existing, {1: "改过的第一块"})
+    check("只覆盖改动的块", patched == {0: "第零块", 1: "改过的第一块", 2: "第二块"}, str(patched))
+    check("patch 不修改原字典", existing[1] == "第一块", str(existing))
+    check(
+        "空 patch 不会清空译文",
+        mt.merge_partial(existing, {}) == existing,
+        "改一段不该让整章退回英文",
+    )
 
     root = pathlib.Path(tempfile.mkdtemp(prefix="bookkit-selftest-"))
     try:

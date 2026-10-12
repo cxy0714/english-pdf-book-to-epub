@@ -472,6 +472,18 @@ def cache_key(cfg: dict[str, Any], prompt: Prompt) -> str:
     return digest.hexdigest()[:20]
 
 
+def merge_partial(existing: dict[int, str], patch: dict[int, str]) -> dict[int, str]:
+    """把「部分块」的校订合并进已有译文，其余块原样保留。
+
+    ``apply_zh.py --from`` 交出的是**部分**块（用户只改了几段），若直接拿它重建整篇，
+    没提到的块会退回英文原文——等于把整章译文清掉。这个函数就是为此存在的：
+    只覆盖 patch 里出现的下标。
+    """
+    merged = dict(existing)
+    merged.update(patch)
+    return merged
+
+
 @dataclass
 class BatchResult:
     batch: Batch

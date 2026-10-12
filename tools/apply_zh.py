@@ -93,15 +93,23 @@ def apply(book, slug: str, source: pathlib.Path, quiet: bool = False) -> int:
     target = next((p for p in payload["parts"] if p["slug"] == slug), None)
     if target is None:
         raise SystemExit(f"{slug} 不在 zh-blocks.json 里，请先跑一次翻译或 --mirror")
-    target["blocks"] = zh_blocks_for(blocks, translations)
+
+    # 只覆盖 patch 里出现的块，其余块沿用现有译文（否则「改三段」会把整章退回英文）
+    existing = {
+        index: (zh_block.get("text") or "")
+        for index, zh_block in enumerate(target["blocks"])
+        if index < len(blocks) and mt.is_translatable(blocks[index])
+    }
+    merged = mt.merge_partial(existing, translations)
+    target["blocks"] = zh_blocks_for(blocks, merged)
     zh_path.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     book.zh_md(slug).write_text(
-        "\n\n".join(markdown_for(blocks, translations, None)) + "\n", encoding="utf-8"
+        "\n\n".join(markdown_for(blocks, merged, None)) + "\n", encoding="utf-8"
     )
 
     filled = sum(1 for b in target["blocks"] if zh.has_cjk(b.get("text") or ""))
     translatable = sum(1 for b in blocks if mt.is_translatable(b))
-    print(f"{slug}：写入 {len(translations)} 块（规范化调整 {adjusted} 块），"
+    print(f"{slug}：本次改动 {len(translations)} 块（规范化调整 {adjusted} 块），"
           f"现含汉字 {filled}/{len(blocks)} 块（可译 {translatable} 块）")
 
     glossary = book.glossary()
