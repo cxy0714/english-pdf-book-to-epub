@@ -1,0 +1,4 @@
+# 本流水线需要的第三方库
+# 抽取阶段：PyMuPDF 读 PDF，Pillow 拼字形对照图
+PyMuPDF>=1.24
+Pillow>=10.0

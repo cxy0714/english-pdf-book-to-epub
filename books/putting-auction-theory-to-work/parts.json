@@ -1,0 +1,945 @@
+{
+  "_comment": "由 tools/plan_parts.py 生成；可手工调整 kind / page_start / page_end / title_en。",
+  "slug": "putting-auction-theory-to-work",
+  "total_pages": 393,
+  "parts": [
+    {
+      "slug": "front",
+      "kind": "front",
+      "level": 1,
+      "title_en": "Front Matter",
+      "page_start": 12,
+      "page_end": 25,
+      "entries": [
+        {
+          "level": 1,
+          "title": "Preface",
+          "page": 12
+        },
+        {
+          "level": 1,
+          "title": "Foreword",
+          "page": 16
+        }
+      ]
+    },
+    {
+      "slug": "ch01",
+      "kind": "chapter",
+      "level": 1,
+      "title_en": "Chapter 1: Getting to Work",
+      "page_start": 26,
+      "page_end": 59,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "CHAPTER ONE: Getting to Work",
+          "page": 26
+        },
+        {
+          "level": 2,
+          "title": "1.1 Politics Sets the Stage",
+          "page": 28
+        },
+        {
+          "level": 2,
+          "title": "1.2 Designing for Multiple Goals",
+          "page": 28
+        },
+        {
+          "level": 3,
+          "title": "1.2.1 Substitutes and Complements",
+          "page": 31
+        },
+        {
+          "level": 3,
+          "title": "1.2.2 New Zealand's Rights Auction",
+          "page": 34
+        },
+        {
+          "level": 3,
+          "title": "1.2.3 Better Auction Designs",
+          "page": 38
+        },
+        {
+          "level": 3,
+          "title": "1.2.4 The FCC Design and Its Progeny",
+          "page": 38
+        },
+        {
+          "level": 2,
+          "title": "1.3 Comparing Seller Revenues",
+          "page": 41
+        },
+        {
+          "level": 2,
+          "title": "1.4 The Academic Critics",
+          "page": 44
+        },
+        {
+          "level": 3,
+          "title": "1.4.1 Resale and the Coase Theorem",
+          "page": 44
+        },
+        {
+          "level": 3,
+          "title": "1.4.2 Mechanism Design Theory",
+          "page": 46
+        },
+        {
+          "level": 3,
+          "title": "1.4.3 Theory and Experiment",
+          "page": 50
+        },
+        {
+          "level": 3,
+          "title": "1.4.4 Practical Concerns",
+          "page": 51
+        },
+        {
+          "level": 2,
+          "title": "1.5 Plan for This Book",
+          "page": 56
+        },
+        {
+          "level": 2,
+          "title": "REFERENCES",
+          "page": 58
+        }
+      ]
+    },
+    {
+      "slug": "part1",
+      "kind": "part",
+      "level": 1,
+      "title_en": "Part 1: THE MECHANISM DESIGN APPROACH",
+      "page_start": 60,
+      "page_end": 69,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "PART ONE: THE MECHANISM DESIGN APPROACH",
+          "page": 60
+        },
+        {
+          "level": 2,
+          "title": "Formalities of the Mechanism Design Model",
+          "page": 64
+        },
+        {
+          "level": 2,
+          "title": "The Chapters of Part I",
+          "page": 67
+        },
+        {
+          "level": 2,
+          "title": "REFERENCES",
+          "page": 68
+        }
+      ]
+    },
+    {
+      "slug": "ch02",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 2: Vickrey–Clarke–Groves Mechanisms",
+      "page_start": 70,
+      "page_end": 88,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER TWO: Vickrey–Clarke–Groves Mechanisms",
+          "page": 70
+        },
+        {
+          "level": 3,
+          "title": "2.1 Formulation",
+          "page": 70
+        },
+        {
+          "level": 4,
+          "title": "Definition",
+          "page": 74
+        },
+        {
+          "level": 3,
+          "title": "2.2 Always Optimal and Weakly Dominant Strategies",
+          "page": 74
+        },
+        {
+          "level": 3,
+          "title": "2.3 Balancing the Budget",
+          "page": 78
+        },
+        {
+          "level": 3,
+          "title": "2.4 Uniqueness",
+          "page": 80
+        },
+        {
+          "level": 3,
+          "title": "2.5 Disadvantages of the Vickrey Auction",
+          "page": 81
+        },
+        {
+          "level": 4,
+          "title": "2.5.1 Practical Disadvantages",
+          "page": 81
+        },
+        {
+          "level": 4,
+          "title": "2.5.2 Monotonicity Problems",
+          "page": 82
+        },
+        {
+          "level": 4,
+          "title": "2.5.3 The Merger–Investment Disadvantage",
+          "page": 85
+        },
+        {
+          "level": 3,
+          "title": "2.6 Conclusion",
+          "page": 86
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 87
+        }
+      ]
+    },
+    {
+      "slug": "ch03",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 3: The Envelope Theorem and Payoff Equivalence",
+      "page_start": 89,
+      "page_end": 122,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER THREE: The Envelope Theorem and Payoff Equivalence",
+          "page": 89
+        },
+        {
+          "level": 3,
+          "title": "3.1 Hotelling's Lemma",
+          "page": 90
+        },
+        {
+          "level": 3,
+          "title": "3.2 The Envelope Theorem in Integral Form",
+          "page": 91
+        },
+        {
+          "level": 3,
+          "title": "3.3 Quasi-linear Payoffs",
+          "page": 94
+        },
+        {
+          "level": 4,
+          "title": "3.3.1 Holmstrom's Lemma",
+          "page": 95
+        },
+        {
+          "level": 4,
+          "title": "3.3.2 The Green–Laffont–Holmstrom Theorem",
+          "page": 96
+        },
+        {
+          "level": 4,
+          "title": "3.3.3 Myerson's Lemma",
+          "page": 98
+        },
+        {
+          "level": 4,
+          "title": "3.3.4 Revenue Equivalence Theorems",
+          "page": 100
+        },
+        {
+          "level": 4,
+          "title": "3.3.5 The Myerson–Satterthwaite Theorem",
+          "page": 102
+        },
+        {
+          "level": 5,
+          "title": "3.3.5.1 Application: Auctions Versus Lotteries",
+          "page": 104
+        },
+        {
+          "level": 4,
+          "title": "3.3.6 The Jehiel–Moldovanu Impossibility Theorems",
+          "page": 105
+        },
+        {
+          "level": 4,
+          "title": "3.3.7 Myerson and Riley–Samuelson Revenue-Maximizing Auctions",
+          "page": 109
+        },
+        {
+          "level": 5,
+          "title": "Definitions",
+          "page": 109
+        },
+        {
+          "level": 4,
+          "title": "3.3.8 The McAfee–McMillan Weak-Cartels Theorem",
+          "page": 112
+        },
+        {
+          "level": 4,
+          "title": "3.3.9 Sequential Auctions and Weber's Martingale Theorem",
+          "page": 115
+        },
+        {
+          "level": 4,
+          "title": "3.3.10 Matthews' Theorem: Risk Averse Payoff Equivalence",
+          "page": 116
+        },
+        {
+          "level": 3,
+          "title": "3.4 Conclusion",
+          "page": 119
+        },
+        {
+          "level": 4,
+          "title": "REFERENCES",
+          "page": 121
+        }
+      ]
+    },
+    {
+      "slug": "ch04",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 4: Bidding Equilibrium and Revenue Differences",
+      "page_start": 123,
+      "page_end": 181,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER FOUR: Bidding Equilibrium and Revenue Differences",
+          "page": 123
+        },
+        {
+          "level": 3,
+          "title": "4.1 The Single Crossing Conditions",
+          "page": 124
+        },
+        {
+          "level": 4,
+          "title": "4.1.1 The Monotonic Selection Theorem",
+          "page": 126
+        },
+        {
+          "level": 4,
+          "title": "4.1.2 The Sufficiency Theorem",
+          "page": 127
+        },
+        {
+          "level": 4,
+          "title": "4.1.3 The Constraint Simplification Theorem",
+          "page": 130
+        },
+        {
+          "level": 4,
+          "title": "4.1.4 The Mirrlees–Spence Representation Theorem",
+          "page": 131
+        },
+        {
+          "level": 3,
+          "title": "4.2 Deriving and Verifying Equilibrium Strategies",
+          "page": 135
+        },
+        {
+          "level": 4,
+          "title": "4.2.1 The Second-Price Auction with a Reserve Price",
+          "page": 136
+        },
+        {
+          "level": 4,
+          "title": "4.2.2 The Sealed Tender, or First-Price, Auction",
+          "page": 137
+        },
+        {
+          "level": 4,
+          "title": "4.2.3 The War of Attrition Auction",
+          "page": 142
+        },
+        {
+          "level": 4,
+          "title": "4.2.4 The All-Pay Auction",
+          "page": 144
+        },
+        {
+          "level": 3,
+          "title": "4.3 Revenue Comparisons in the Benchmark Model",
+          "page": 144
+        },
+        {
+          "level": 4,
+          "title": "4.3.1 Payoff Equivalence without Revenue Equivalence",
+          "page": 146
+        },
+        {
+          "level": 5,
+          "title": "Risk Averse Sellers",
+          "page": 146
+        },
+        {
+          "level": 5,
+          "title": "Risk Averse Bidders",
+          "page": 147
+        },
+        {
+          "level": 4,
+          "title": "4.3.2 Budget Constraints",
+          "page": 157
+        },
+        {
+          "level": 4,
+          "title": "4.3.3 Endogenous Quantities",
+          "page": 160
+        },
+        {
+          "level": 4,
+          "title": "4.3.4 Correlated Types",
+          "page": 162
+        },
+        {
+          "level": 3,
+          "title": "4.4 Expected-Revenue-Maximizing Auctions",
+          "page": 165
+        },
+        {
+          "level": 4,
+          "title": "4.4.1 Myerson's Theorem",
+          "page": 169
+        },
+        {
+          "level": 5,
+          "title": "Examples",
+          "page": 170
+        },
+        {
+          "level": 4,
+          "title": "4.4.2 Bulow–Klemperer Theorem",
+          "page": 173
+        },
+        {
+          "level": 4,
+          "title": "4.4.3 The Irregular Case",
+          "page": 173
+        },
+        {
+          "level": 3,
+          "title": "4.5 Auctions with Weak and Strong Bidders",
+          "page": 174
+        },
+        {
+          "level": 3,
+          "title": "4.6 Conclusion",
+          "page": 179
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 180
+        }
+      ]
+    },
+    {
+      "slug": "ch05",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 5: Interdependence of Types and Values",
+      "page_start": 182,
+      "page_end": 232,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER FIVE: Interdependence of Types and Values",
+          "page": 182
+        },
+        {
+          "level": 3,
+          "title": "5.1 Which Models and Assumptions are \"Useful\"?",
+          "page": 183
+        },
+        {
+          "level": 4,
+          "title": "5.1.1 Payoffs Depend Only on Bids and Types",
+          "page": 183
+        },
+        {
+          "level": 4,
+          "title": "5.1.2 Types Are One-Dimensional and Values Are Private",
+          "page": 184
+        },
+        {
+          "level": 4,
+          "title": "5.1.3 Types Are Statistically Independent",
+          "page": 186
+        },
+        {
+          "level": 3,
+          "title": "5.2 Statistical Dependence and Revenue-Maximizing Auctions",
+          "page": 187
+        },
+        {
+          "level": 3,
+          "title": "5.3 Wilson's Drainage Tract Model",
+          "page": 191
+        },
+        {
+          "level": 4,
+          "title": "5.3.1 Equilibrium",
+          "page": 192
+        },
+        {
+          "level": 4,
+          "title": "5.3.2 Profits and Revenues",
+          "page": 198
+        },
+        {
+          "level": 4,
+          "title": "5.3.3 Bidder Information Policy",
+          "page": 200
+        },
+        {
+          "level": 4,
+          "title": "5.3.4 Seller Information Policy",
+          "page": 202
+        },
+        {
+          "level": 3,
+          "title": "5.4 Correlated Types and Interdependent Values",
+          "page": 206
+        },
+        {
+          "level": 4,
+          "title": "5.4.1 Affiliation",
+          "page": 207
+        },
+        {
+          "level": 4,
+          "title": "5.4.2 The Milgrom–Weber Ascending Auction Models",
+          "page": 212
+        },
+        {
+          "level": 5,
+          "title": "5.4.2.1 The (Second-Price) Button Auction with Minimal Information",
+          "page": 213
+        },
+        {
+          "level": 5,
+          "title": "5.4.2.2 The Button Auction with Maximal Information",
+          "page": 220
+        },
+        {
+          "level": 5,
+          "title": "5.4.2.3 Some Revenue Comparisons",
+          "page": 223
+        },
+        {
+          "level": 4,
+          "title": "5.4.3 First-Price Auctions",
+          "page": 225
+        },
+        {
+          "level": 3,
+          "title": "5.5 Conclusion",
+          "page": 229
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 231
+        }
+      ]
+    },
+    {
+      "slug": "ch06",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 6: Auctions in Context",
+      "page_start": 233,
+      "page_end": 275,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER SIX: Auctions in Context",
+          "page": 233
+        },
+        {
+          "level": 3,
+          "title": "6.1 The Profit and Surplus Contribution of an Entrant",
+          "page": 239
+        },
+        {
+          "level": 3,
+          "title": "6.2 Symmetric Models with Costly Entry",
+          "page": 241
+        },
+        {
+          "level": 4,
+          "title": "6.2.1 Symmetric Bidders and Uncoordinated Entry",
+          "page": 243
+        },
+        {
+          "level": 5,
+          "title": "6.2.1.1 Equilibrium in Entry and Bidding Decisions",
+          "page": 243
+        },
+        {
+          "level": 5,
+          "title": "6.2.1.2 Setting the Reserve Price",
+          "page": 247
+        },
+        {
+          "level": 4,
+          "title": "6.2.2 Coordinating Entry among Symmetric Competitors",
+          "page": 250
+        },
+        {
+          "level": 5,
+          "title": "6.2.2.1 Pre-qualifying Bidders",
+          "page": 252
+        },
+        {
+          "level": 5,
+          "title": "6.2.2.2 Auctions, Negotiations, and Posted Prices",
+          "page": 255
+        },
+        {
+          "level": 5,
+          "title": "6.2.2.3 Buy Prices",
+          "page": 257
+        },
+        {
+          "level": 3,
+          "title": "6.3 Asymmetric Models: Devices to Promote Competition",
+          "page": 259
+        },
+        {
+          "level": 4,
+          "title": "6.3.1 Example of Set-asides",
+          "page": 260
+        },
+        {
+          "level": 4,
+          "title": "6.3.2 Example of Bidding Credits",
+          "page": 262
+        },
+        {
+          "level": 4,
+          "title": "6.3.3 Example of Lot Structure and Consolation Prizes",
+          "page": 263
+        },
+        {
+          "level": 4,
+          "title": "6.3.4 Premium Auctions",
+          "page": 264
+        },
+        {
+          "level": 4,
+          "title": "6.3.5 Dutch vs. English Auctions and the Anglo-Dutch Design",
+          "page": 266
+        },
+        {
+          "level": 3,
+          "title": "6.4 After the Bidding Ends",
+          "page": 268
+        },
+        {
+          "level": 4,
+          "title": "6.4.1 Bankruptcy and Non-performance",
+          "page": 268
+        },
+        {
+          "level": 4,
+          "title": "6.4.2 Scoring Rules vs. Price-Only Bids",
+          "page": 270
+        },
+        {
+          "level": 3,
+          "title": "6.5 Conclusion",
+          "page": 272
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 274
+        }
+      ]
+    },
+    {
+      "slug": "part2",
+      "kind": "part",
+      "level": 1,
+      "title_en": "Part 2: MULTI-UNIT AUCTIONS",
+      "page_start": 276,
+      "page_end": 279,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "PART TWO: MULTI-UNIT AUCTIONS",
+          "page": 276
+        },
+        {
+          "level": 2,
+          "title": "REFERENCES",
+          "page": 279
+        }
+      ]
+    },
+    {
+      "slug": "ch07",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 7: Uniform Price Auctions",
+      "page_start": 280,
+      "page_end": 320,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER SEVEN: Uniform Price Auctions",
+          "page": 280
+        },
+        {
+          "level": 3,
+          "title": "7.1 Uniform Price Sealed-Bid Auctions",
+          "page": 282
+        },
+        {
+          "level": 4,
+          "title": "7.1.1 Demand Reduction",
+          "page": 283
+        },
+        {
+          "level": 4,
+          "title": "7.1.2 Low-Price Equilibria",
+          "page": 287
+        },
+        {
+          "level": 3,
+          "title": "7.2 Simultaneous Ascending Auctions",
+          "page": 290
+        },
+        {
+          "level": 4,
+          "title": "7.2.1 The Simultaneous Ascending Auction and the Walrasian Tatonnement",
+          "page": 293
+        },
+        {
+          "level": 5,
+          "title": "Notation and Definitions",
+          "page": 295
+        },
+        {
+          "level": 4,
+          "title": "7.2.2 Clock Auctions",
+          "page": 304
+        },
+        {
+          "level": 4,
+          "title": "7.2.3 Strategic Incentives in Uniform Price Auctions",
+          "page": 309
+        },
+        {
+          "level": 5,
+          "title": "7.2.3.1 The Basic Clock Auction Model",
+          "page": 309
+        },
+        {
+          "level": 5,
+          "title": "7.2.3.2 The Alternating-Move Clock Auction",
+          "page": 312
+        },
+        {
+          "level": 5,
+          "title": "7.2.3.3 Strategic Incentives with Elastic Supply",
+          "page": 315
+        },
+        {
+          "level": 3,
+          "title": "7.3 Conclusion",
+          "page": 318
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 320
+        }
+      ]
+    },
+    {
+      "slug": "ch08",
+      "kind": "chapter",
+      "level": 2,
+      "title_en": "Chapter 8: Package Auctions and Combinatorial Bidding",
+      "page_start": 321,
+      "page_end": 363,
+      "chapter_level": 2,
+      "entries": [
+        {
+          "level": 2,
+          "title": "CHAPTER EIGHT: Package Auctions and Combinatorial Bidding",
+          "page": 321
+        },
+        {
+          "level": 3,
+          "title": "8.1 Vickrey Auctions and the Monotonicity Problems",
+          "page": 327
+        },
+        {
+          "level": 4,
+          "title": "8.1.1 Bidders' Vickrey Payoffs Bound Their Core Payoffs",
+          "page": 330
+        },
+        {
+          "level": 4,
+          "title": "8.1.2 Vickrey Auctions and the Entry Puzzle",
+          "page": 330
+        },
+        {
+          "level": 5,
+          "title": "Definitions",
+          "page": 331
+        },
+        {
+          "level": 4,
+          "title": "8.1.3 When Are Vickrey Outcomes in the Core?",
+          "page": 332
+        },
+        {
+          "level": 4,
+          "title": "8.1.4 Substitute Goods and Core Outcomes",
+          "page": 333
+        },
+        {
+          "level": 4,
+          "title": "8.1.5 Substitute Goods and Vickrey Outcomes",
+          "page": 337
+        },
+        {
+          "level": 3,
+          "title": "8.2 Bernheim–Whinston First-Price Package Auctions",
+          "page": 340
+        },
+        {
+          "level": 4,
+          "title": "8.2.1 Formulation",
+          "page": 341
+        },
+        {
+          "level": 4,
+          "title": "8.2.2 Profit-Target Strategies",
+          "page": 343
+        },
+        {
+          "level": 4,
+          "title": "8.2.3 Equilibrium and the Core",
+          "page": 344
+        },
+        {
+          "level": 3,
+          "title": "8.3 Ausubel–Milgrom Ascending Proxy Auctions",
+          "page": 349
+        },
+        {
+          "level": 4,
+          "title": "8.3.1 The Proxy Auction with Unlimited Budgets",
+          "page": 350
+        },
+        {
+          "level": 5,
+          "title": "8.3.1.1 Proxy Outcomes Are Core Outcomes",
+          "page": 351
+        },
+        {
+          "level": 5,
+          "title": "8.3.1.2 Profit-Target Strategies and Equilibrium",
+          "page": 352
+        },
+        {
+          "level": 5,
+          "title": "8.3.1.3 The Proxy Auction When Goods Are Substitutes",
+          "page": 354
+        },
+        {
+          "level": 4,
+          "title": "8.3.2 The Non-transferable-Utility Proxy Auction",
+          "page": 355
+        },
+        {
+          "level": 3,
+          "title": "8.4 Conclusion",
+          "page": 358
+        },
+        {
+          "level": 3,
+          "title": "REFERENCES",
+          "page": 360
+        }
+      ]
+    },
+    {
+      "slug": "bibliography",
+      "kind": "library",
+      "level": 1,
+      "title_en": "Bibliography",
+      "page_start": 364,
+      "page_end": 371,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "Bibliography",
+          "page": 364
+        }
+      ]
+    },
+    {
+      "slug": "author-index",
+      "kind": "index",
+      "level": 1,
+      "title_en": "Author Index",
+      "page_start": 372,
+      "page_end": 375,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "Author Index",
+          "page": 372
+        }
+      ]
+    },
+    {
+      "slug": "subject-index",
+      "kind": "index",
+      "level": 1,
+      "title_en": "Subject Index",
+      "page_start": 376,
+      "page_end": 393,
+      "chapter_level": 1,
+      "entries": [
+        {
+          "level": 1,
+          "title": "Subject Index",
+          "page": 376
+        }
+      ]
+    }
+  ]
+}

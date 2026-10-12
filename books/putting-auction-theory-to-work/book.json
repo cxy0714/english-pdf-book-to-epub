@@ -1,0 +1,30 @@
+{
+  "slug": "putting-auction-theory-to-work",
+  "title_en": "Putting Auction Theory to Work",
+  "title_zh": "让拍卖理论付诸实践",
+  "author": "Paul Milgrom",
+  "publisher": "Cambridge University Press",
+  "year": 2004,
+  "isbn": "978-0521818848",
+  "source_pdf": "source/putting-auction-theory-to-work.pdf",
+  "source_note": "英文原书 PDF（版权文件，不入库）。中文为非官方译本，仅供个人研读；术语、公式、数字与引文请以英文原书为准。",
+  "rights": "copyrighted",
+  "chapter_prefix": "CHAPTER",
+  "layout": {
+    "body_size": 9.7,
+    "footnote_size": 7.5,
+    "marker_size": 5.2,
+    "ref_sizes": [5.2, 6.8],
+    "bullet_fonts": ["LCIRCLE10", "LBOX", "LDINGBAT", "LSYMBOL", "LNCIRCLE"],
+    "caption_sizes": [8.0, 8.5],
+    "table_size": 8.0,
+    "note_area_min_y_ratio": 0.4,
+    "figure_render_zoom": 4.0
+  },
+  "style_fonts": {
+    "bold": ["Utopia-Semibold", "Utopia-Bold", "Utopia-SemiboldItalic"],
+    "italic": ["Utopia-Italic", "Utopia-SemiboldItalic"],
+    "math_prefixes": ["MTEX", "MTSY", "RMTMI", "MSAM", "MSBM", "EUSM", "EUM", "CMSY", "CMMI", "CMEX"]
+  },
+  "parts_source": "parts.json"
+}
