@@ -148,6 +148,7 @@ def make_cfg(base_url: str) -> dict:
         "target_output_chars": 400,
         "context_prev_blocks": 2,
         "context_next_blocks": 1,
+        "context_prev_zh": True,
         "glossary_in_prompt": True,
         "chapter_brief": True,
     }
@@ -225,6 +226,21 @@ def end_to_end(base_url: str) -> None:
                 restored = False
         if not restored:
             print("  !! 未能恢复原始 zh-blocks.json / front.zh.md，请检查后手动重跑 --mirror")
+
+
+def long_sample() -> tuple[dict, list[dict]]:
+    """足够长的一篇：会被切成多批，用来验证「后一批看得见前一批的中文」。"""
+    blocks = [block("part", "2 Multi-batch Chapter")]
+    for index in range(1, 13):
+        blocks.append(
+            block(
+                "paragraph",
+                f"Paragraph {index}. The auction is efficient and the bidder profits, "
+                f"so the seller's revenue rises when competition is strong. " * 6,
+            )
+        )
+    part = {"slug": "mock02", "title_en": "Chapter 2", "title_zh": "第2章", "page_start": 3, "page_end": 9}
+    return part, blocks
 
 
 def main() -> int:
@@ -314,6 +330,41 @@ def main() -> int:
         check("没有缺失编号", missing == [], str(missing))
         _, missing2 = mt.parse_response("[B1] 只有一条", [1, 2, 3])
         check("缺失编号能报出", missing2 == [2, 3], str(missing2))
+
+        print("前文带中文语境（跨批一致性）")
+        STATE.reset()
+        cfg_multi = dict(cfg)
+        cfg_multi["concurrency"] = 3  # 开了前文中文语境就该被压到 1
+        logs: list[str] = []
+        translator4 = mt.Translator(book, cfg_multi, logger=logs.append)
+        translator4.cache_dir = root / "cache4"
+        translator4.cache_dir.mkdir(parents=True, exist_ok=True)
+        part_long, blocks_long = long_sample()
+        plan_long = mt.plan_batches(blocks_long, cfg_multi)
+        check("长章确实切成多批", len(plan_long) > 1, f"{len(plan_long)} 批")
+        long_translations, _ = translator4.translate_part(part_long, blocks_long)
+        check("多批译文齐全", len(long_translations) == len(blocks_long), str(len(long_translations)))
+        prompts = [payload["messages"][-1]["content"] for payload in STATE.requests]
+        check("请求数等于批数", len(prompts) == len(plan_long), f"{len(prompts)} vs {len(plan_long)}")
+        check("第一批没有前文中文语境", "【前文（已译" not in prompts[0], prompts[0][:200])
+        check(
+            "第二批起带上了已译中文",
+            "【前文（已译" in prompts[1] and "中：" in prompts[1] and "原：" in prompts[1],
+            prompts[1][:400],
+        )
+        # 前一批的译文必须真的出现在后一批的语境里（而不是空壳标题）
+        last_item = plan_long[0].items[-1]
+        first_batch_zh = long_translations[last_item.block]
+        check(
+            "语境里是前一批的真实译文",
+            first_batch_zh[:12] in prompts[1],
+            f"没找到 {first_batch_zh[:20]!r}",
+        )
+        check(
+            "并发被压到 1（顺序译）",
+            any("并发由 3 降为 1" in line for line in logs),
+            f"日志里没有降并发提示：{logs[:3]}",
+        )
 
         print("端到端（真跑一次 CLI，用假接口）")
         end_to_end(base_url)

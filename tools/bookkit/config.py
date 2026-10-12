@@ -53,6 +53,9 @@ DEFAULT_MT: dict[str, Any] = {
     # 每批附带多少已译前文 / 待译后文，用来维持跨块一致性
     "context_prev_blocks": 8,
     "context_next_blocks": 2,
+    # 前文语境里带上「已经译好的中文」，让模型照着自己的用词往下译。开启后本篇
+    # 各批会按顺序翻译（并发降为 1），否则后一批看不到前一批定下的中文。
+    "context_prev_zh": True,
     "glossary_in_prompt": True,
     "chapter_brief": True,
 }

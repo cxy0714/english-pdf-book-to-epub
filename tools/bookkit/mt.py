@@ -103,10 +103,27 @@ def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = No
     return batches
 
 
+def prior_allowance(blocks: list[dict], batch: Batch, cfg: dict[str, Any]) -> int:
+    """估算「前文带中文语境」会给这次请求增加多少字符。
+
+    规划时这些中文还不存在（还没译），但请求发出去时它们在，所以报出来的请求大小和
+    花费要把它算进去，否则规划偏乐观。中文约是英文的 0.32 倍，再加上「原：」那行英文。
+    """
+    if not cfg.get("context_prev_zh", True):
+        return 0
+    prev_count = int(cfg.get("context_prev_blocks", 0))
+    if prev_count <= 0:
+        return 0
+    first = batch.items[0].block
+    window = [i for i in range(max(0, first - prev_count), first) if is_translatable(blocks[i])]
+    english = sum(min(len(blocks[i].get("text") or ""), 600) for i in window)
+    return int(english * 0.32) + sum(min(len(blocks[i].get("text") or ""), 400) for i in window) + 40 * len(window)
+
+
 def prompt_size(book, part: dict, blocks: list[dict], batch: Batch, glossary, cfg, style: str = "") -> int:
-    """一次请求的字符数（system + user）。"""
+    """一次请求的字符数（system + user），含前文中文语境的估算。"""
     prompt = build_prompt(book, part, blocks, batch, glossary, cfg, style)
-    return len(prompt.system) + len(prompt.user)
+    return len(prompt.system) + len(prompt.user) + prior_allowance(blocks, batch, cfg)
 
 
 def fit_input_budget(
@@ -316,7 +333,13 @@ def build_prompt(
     glossary: dict[str, Any],
     cfg: dict[str, Any],
     style: str = "",
+    prior: dict[int, str] | None = None,
 ) -> Prompt:
+    """组装一次请求。
+
+    ``prior`` 是**已经译好的块**（``{块下标: 译文}``）。给了它，前文语境就会带上中文，
+    模型能照着自己的用词往下译；不给就只给英文原文。
+    """
     store: dict[str, str] = {}
     pieces: list[str] = []
     pieces.append(f"【书籍】{book.title_en}（{book.title_zh}），{book.author}")
@@ -329,9 +352,11 @@ def build_prompt(
     first, last = batch.items[0].block, batch.items[-1].block
     prev_count = int(cfg.get("context_prev_blocks", 0))
     next_count = int(cfg.get("context_next_blocks", 0))
-    previous: list[dict] = []
+    previous: list[tuple[int, dict]] = []
     if prev_count:
-        previous = [blocks[i] for i in range(max(0, first - prev_count), first) if is_translatable(blocks[i])]
+        previous = [
+            (i, blocks[i]) for i in range(max(0, first - prev_count), first) if is_translatable(blocks[i])
+        ]
     following: list[dict] = []
     if next_count:
         following = [
@@ -345,17 +370,29 @@ def build_prompt(
         # 整份术语表逐请求重复是最贵的一笔开销，而无关条目只是噪音。
         relevant_text = " ".join(
             [blocks[item.block].get("text") or "" for item in batch.items]
-            + [block.get("text") or "" for block in previous + following]
+            + [block.get("text") or "" for _, block in previous]
+            + [block.get("text") or "" for block in following]
         )
         text = format_glossary(glossary, relevant=relevant_text)
         if text:
             pieces.append(text)
 
     if previous:
-        lines = ["【前文（英文，仅供衔接语气与指代，不要翻译）】"]
-        for offset, block in enumerate(previous, start=1):
-            lines.append(f"  ({offset}) {block['text'][:600]}")
-        pieces.append("\n".join(lines))
+        # 已译的前文要连中文一起给出：模型看到自己上一批的用词，才会在批与批之间
+        # 保持一致（术语、指代、重复句式的处理）。只给英文原文时，批边界最容易漂。
+        translated_prev = [(i, block) for i, block in previous if prior and prior.get(i)]
+        if translated_prev:
+            lines = ["【前文（已译，供衔接语气与统一用词，不要重译）】"]
+            for offset, (index, block) in enumerate(translated_prev, start=1):
+                lines.append(f"  ({offset}) 中：{prior[index][:600]}")
+                lines.append(f"      原：{block['text'][:400]}")
+            pieces.append("\n".join(lines))
+        untranslated_prev = [(i, block) for i, block in previous if not (prior and prior.get(i))]
+        if untranslated_prev:
+            lines = ["【前文（英文，仅供衔接语气与指代，不要翻译）】"]
+            for offset, (_, block) in enumerate(untranslated_prev, start=1):
+                lines.append(f"  ({offset}) {block['text'][:600]}")
+            pieces.append("\n".join(lines))
     if following:
         lines = ["【后文（英文，仅供衔接，不要翻译）】"]
         for offset, block in enumerate(following, start=1):
@@ -509,8 +546,12 @@ class Translator:
         self.glossary = book.glossary()
 
     # --- 单批 -----------------------------------------------------------
-    def translate_batch(self, part: dict, blocks: list[dict], batch: Batch) -> BatchResult:
-        prompt = build_prompt(self.book, part, blocks, batch, self.glossary, self.cfg, self.style)
+    def translate_batch(
+        self, part: dict, blocks: list[dict], batch: Batch, prior: dict[int, str] | None = None
+    ) -> BatchResult:
+        prompt = build_prompt(
+            self.book, part, blocks, batch, self.glossary, self.cfg, self.style, prior=prior
+        )
         key = cache_key(self.cfg, prompt)
         cache_path = self.cache_dir / f"{key}.json"
         started = time.time()
@@ -534,7 +575,9 @@ class Translator:
             attempt += 1
             try:
                 if working is not batch:
-                    prompt = build_prompt(self.book, part, blocks, working, self.glossary, self.cfg, self.style)
+                    prompt = build_prompt(
+                        self.book, part, blocks, working, self.glossary, self.cfg, self.style, prior=prior
+                    )
                     expected = [item.number for item in working.items]
                 content, usage = chat(self.cfg, prompt.messages())
                 self.stats["requests"] += 1
@@ -569,7 +612,7 @@ class Translator:
                     right = Batch(items=working.items[half:], est_chars=0)
                     merged: dict[int, str] = {}
                     for piece in (left, right):
-                        sub = self.translate_batch(part, blocks, piece)
+                        sub = self.translate_batch(part, blocks, piece, prior=prior)
                         if sub.error:
                             return sub
                         merged.update(sub.translations)
@@ -609,10 +652,18 @@ class Translator:
         if not batches:
             return merged, results
         concurrency = max(1, int(self.cfg.get("concurrency", 1)))
+        # 「前文带中文」需要**按顺序**译：后一批要看得见前一批已经定下来的中文用词。
+        # 并发会把批打乱，这个语境就没了，所以开了它就把并发压到 1。
+        want_prior = bool(self.cfg.get("context_prev_zh", True)) and int(
+            self.cfg.get("context_prev_blocks", 0)
+        ) > 0
+        if want_prior and concurrency > 1 and len(batches) > 1:
+            self.log(f"  前文带中文语境开启：并发由 {concurrency} 降为 1（保证批按顺序译）")
+            concurrency = 1
         if concurrency == 1 or len(batches) == 1:
             for number, batch in enumerate(batches, start=1):
                 self.log(f"  批 {number}/{len(batches)}：{len(batch.items)} 条，约 {batch.est_chars} 字")
-                result = self.translate_batch(part, blocks, batch)
+                result = self.translate_batch(part, blocks, batch, prior=merged if want_prior else None)
                 self.log_result(result)
                 results.append(result)
                 absorb(result)
