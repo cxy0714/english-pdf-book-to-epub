@@ -34,7 +34,7 @@ BOOKS_DIR = REPO_ROOT / "books"
 CONFIG_DIR = REPO_ROOT / "config"
 
 DEFAULT_MT: dict[str, Any] = {
-    "base_url": "https://api.moyu.cn/v1",
+    "base_url": "https://moyu.cn/v1",
     "model": "deepseek-v4.1-flash",
     "api_key": "",
     "api_key_env": ["MOYU_API_KEY", "MT_API_KEY"],

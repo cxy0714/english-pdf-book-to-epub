@@ -55,8 +55,6 @@ venv/
 # --- 本地调研/临时文件（不属于交付）---
 _reference/
 _scratch/
-_run*.txt
-_r?.txt
-_pdf_probe*.txt
-_probe*.py
-_inspect_pdf.py
+# 仓库根目录下的临时脚本与运行日志（注意锚定，别误伤 tools/ 里的 __init__.py）
+/_*.txt
+/_*.py

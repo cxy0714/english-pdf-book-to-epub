@@ -48,6 +48,7 @@ tools/
   build_book_md.py        逐块对照稿 → Markdown
   build_epub.py          逐块对照稿 → EPUB3（双语 / 纯中文）
   check_epub.py          EPUB 合规与内容完整性校验
+  verify_all.py          整本书验收：结构对齐 + 文本质量 + 交付物
   bookkit/               核心库（版面解析、文本规范化、翻译接口、EPUB 打包）
 ```
 
@@ -79,6 +80,9 @@ python tools/translate_mt.py --part front
 python tools/build_book_md.py
 python tools/build_epub.py
 python tools/check_epub.py
+
+# 9. 一条命令验收整本书（结构对齐 + 文本质量 + 交付物）
+python tools/verify_all.py
 ```
 
 ## 设计要点

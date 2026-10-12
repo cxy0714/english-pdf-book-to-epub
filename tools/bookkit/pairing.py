@@ -19,6 +19,7 @@ from .config import Book, ConfigError
 SHARED_TYPES = {"equation", "row", "figure"}
 
 FOOTNOTE_REF_RE = re.compile(r"\[\^(\d+)\]")
+PLACEHOLDER_RE = re.compile(r"\[\[(?:fn|m|img)\d+\]\]")
 
 
 @dataclass
@@ -128,17 +129,39 @@ def load_parts(book: Book) -> list[Part]:
 
 
 def alignment_report(parts: list[Part]) -> list[str]:
-    """检查中英块数是否一致，返回问题列表。"""
+    """检查中英块的对齐情况，返回问题列表。
+
+    三类问题：
+      1. zh-blocks.json 块数不足，有块没有对应译文；
+      2. 应翻译的块译文为空；
+      3. 共享块（公式/表行/图/不翻译篇）中英文本必须逐字一致——不一致说明
+         翻译阶段动了不该动的内容；
+      4. 译文里残留占位符（`[[fn1]]` 这类没还原回去）。
+    """
     problems: list[str] = []
     for part in parts:
         missing_zh = sum(1 for pair in part.pairs if pair.zh is None)
-        untranslated = [
-            pair for pair in part.pairs if not pair.shared and pair.zh is not None and not pair.zh_text.strip()
-        ]
+        untranslated = 0
+        mismatched = 0
+        leftover = 0
+        for pair in part.pairs:
+            if pair.zh is None:
+                continue
+            zh_text = pair.zh.get("text") or ""
+            if not pair.shared and not zh_text.strip():
+                untranslated += 1
+            if pair.shared and zh_text != pair.en_text:
+                mismatched += 1
+            if PLACEHOLDER_RE.search(zh_text) or PLACEHOLDER_RE.search(zh_text.lower()):
+                leftover += 1
         if missing_zh:
             problems.append(f"{part.slug}: {missing_zh} 块没有对应译文（zh-blocks.json 块数不足）")
         if untranslated:
-            problems.append(f"{part.slug}: {len(untranslated)} 块译文为空")
+            problems.append(f"{part.slug}: {untranslated} 块译文为空")
+        if mismatched:
+            problems.append(f"{part.slug}: {mismatched} 个共享块（公式/表行/图）中英文本不一致")
+        if leftover:
+            problems.append(f"{part.slug}: {leftover} 块译文残留占位符")
     return problems
 
 

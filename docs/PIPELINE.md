@@ -111,7 +111,8 @@ PyMuPDF 读到的字符 ──(/ToUnicode 反查)──▶ 字符码
 
 | 现象 | 处理 |
 | --- | --- |
-| `HTTP 401` | key 没填或填错位置；`config/mt.local.json` 的 `api_key` |
+| `HTTP 401 无效的令牌` | key 没填或填错；填 `config/mt.local.json` 的 `api_key` |
+| `SSL: UNEXPECTED_EOF_WHILE_READING` | 域名不解析。魔芋的接口是 `https://moyu.cn/v1`（`api.moyu.cn` 不解析 DNS） |
 | `HTTP 404` | `base_url` 不对，注意要带 `/v1` |
 | `响应缺少 choices` | 接口不是 OpenAI 兼容格式，或模型名不对 |
 | 反复「缺少 N 条译文」 | 批太大被截断 → 调小 `target_output_chars` 或调大 `max_tokens` |

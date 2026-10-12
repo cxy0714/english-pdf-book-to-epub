@@ -2,7 +2,7 @@
   "_comment": "全局翻译接口配置模板。复制成 config/mt.local.json 并把 key 填进 api_key 即可；本地文件已被 .gitignore 忽略，不会入库。也可以用环境变量 MOYU_API_KEY / MT_API_KEY。单项覆盖可以写在 books/<slug>/mt.local.json 里。",
   "_comment_batching": "批大小不按块数/字符数硬切，而是按【译文预算】自动算：短章整章一次翻完，长章按 target_output_chars 切块，并在每次请求里附上全章大纲、术语表和已译前文，保证一致性。",
 
-  "base_url": "https://api.moyu.cn/v1",
+  "base_url": "https://moyu.cn/v1",
   "model": "deepseek-v4.1-flash",
   "api_key": "",
 
