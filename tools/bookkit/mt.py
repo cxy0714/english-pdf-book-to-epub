@@ -65,13 +65,19 @@ class Batch:
     est_chars: int = 0
 
 
-def plan_batches(blocks: list[dict], cfg: dict[str, Any]) -> list[Batch]:
-    """按译文预算切批。整章能一次装下就一次装下。"""
+def plan_batches(blocks: list[dict], cfg: dict[str, Any], limit: int | None = None) -> list[Batch]:
+    """按译文预算切批。整章能一次装下就一次装下。
+
+    ``limit`` 只取前 N 条待译块（冒烟测试用）——必须在**切批之前**就砍掉，
+    否则请求里仍会带上全部条目，`--limit` 省不了钱。
+    """
     target = int(cfg.get("target_output_chars", 3200))
     max_tokens = int(cfg.get("max_tokens", 8192))
     # 一次返回的安全上限：中文约 1.4 汉字/token，留 25% 余量
     ceiling = int(max_tokens * 1.4 * 0.75)
     indices = [i for i, block in enumerate(blocks) if is_translatable(block)]
+    if limit is not None:
+        indices = indices[:limit]
     estimates = {i: estimate_zh(blocks[i]["text"]) for i in indices}
     total = sum(estimates.values())
 
@@ -269,7 +275,7 @@ def build_prompt(
     return Prompt(system=system, user="\n\n".join(pieces), store=store)
 
 
-MARKER_RE = re.compile(r"^\s*\[B(\d+)\]\s*(.*)$")
+MARKER_RE = re.compile(r"^\s*\[\s*B\s*(\d+)\s*\]\s*(.*)$")
 FENCE_RE = re.compile(r"^\s*```")
 
 
@@ -453,10 +459,25 @@ class Translator:
         return BatchResult(batch=batch, error=last_error, seconds=time.time() - started)
 
     # --- 整篇 -----------------------------------------------------------
-    def translate_part(self, part: dict, blocks: list[dict]) -> tuple[dict[int, str], list[BatchResult]]:
-        batches = plan_batches(blocks, self.cfg)
+    def translate_part(
+        self, part: dict, blocks: list[dict], limit: int | None = None
+    ) -> tuple[dict[int, str], list[BatchResult]]:
+        """翻译一篇，返回 ``{块下标: 译文}``。
+
+        注意返回值的键是**块下标**（与 ``build/blocks.json`` 的下标一致），
+        不是 ``[Bn]`` 里的批内序号。多批时各批的 ``[B1]`` 会重复，必须用
+        ``Item.block`` 映射回去，否则译文会互相覆盖、错位到别的块上。
+        """
+        batches = plan_batches(blocks, self.cfg, limit=limit)
         results: list[BatchResult] = []
         merged: dict[int, str] = {}
+
+        def absorb(result: BatchResult) -> None:
+            for item in result.batch.items:
+                text = result.translations.get(item.number)
+                if text is not None:
+                    merged[item.block] = text
+
         if not batches:
             return merged, results
         concurrency = max(1, int(self.cfg.get("concurrency", 1)))
@@ -466,7 +487,7 @@ class Translator:
                 result = self.translate_batch(part, blocks, batch)
                 self.log_result(result)
                 results.append(result)
-                merged.update(result.translations)
+                absorb(result)
             return merged, results
         with ThreadPoolExecutor(max_workers=concurrency) as pool:
             futures = {}
@@ -477,7 +498,7 @@ class Translator:
                 result = future.result()
                 self.log_result(result, prefix=f"  批 {futures[future]}/{len(batches)}")
                 results.append(result)
-                merged.update(result.translations)
+                absorb(result)
         return merged, results
 
     def log_result(self, result: BatchResult, prefix: str = "  ") -> None:

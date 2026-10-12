@@ -52,6 +52,7 @@ tools/
   normalize_zh.py        译文标点/空格规范化（不联网，可反复跑）
   lint_zh.py             译文质检：未译、术语漏译、标点不配对、译文过短
   selftest.py            不依赖书数据的自检（含校验器的反例测试）
+  mt_selftest.py         用本地假接口跑通翻译客户端（请求/缓存/重试/拆批/回填）
   bookkit/               核心库（版面解析、文本规范化、翻译接口、EPUB 打包）
 ```
 
@@ -93,6 +94,7 @@ python tools/lint_zh.py
 
 # 11. 不依赖书数据的自检（改完代码先跑这个）
 python tools/selftest.py
+python tools/mt_selftest.py      # 用本地假接口跑通翻译客户端，不花 token
 ```
 
 ## 设计要点

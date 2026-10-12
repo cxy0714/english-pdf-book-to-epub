@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env python3
+#!/usr/bin/env python3
 """调用机器翻译接口，把英文底本逐块译成中文。
 
 块级对齐是**结构保证**的：请求里每条待译内容编号 ``[B1] [B2] …``，模型按同样的
@@ -123,12 +123,15 @@ def main() -> int:
     parser.add_argument("--limit", type=int, help="每篇只译前 N 条（冒烟测试）")
     parser.add_argument("--force", action="store_true", help="忽略已有译文与缓存，重译")
     parser.add_argument("--model", help="临时覆盖模型名")
+    parser.add_argument("--base-url", help="临时覆盖接口地址（自检用，如 http://127.0.0.1:8765/v1）")
     parser.add_argument("--concurrency", type=int, help="临时覆盖并发数")
     parser.add_argument("--quiet", action="store_true")
     args = parser.parse_args()
 
     book = resolve_book(args.book)
     cfg = book.mt_config(args.model)
+    if args.base_url:
+        cfg["base_url"] = args.base_url
     if args.concurrency:
         cfg["concurrency"] = args.concurrency
 
@@ -153,7 +156,7 @@ def main() -> int:
         if args.limit:
             translatable = translatable[: args.limit]
         estimated = sum(mt.estimate_zh(blocks[i]["text"]) for i in translatable)
-        plan = mt.plan_batches(blocks, cfg)
+        plan = mt.plan_batches(blocks, cfg, limit=args.limit)
 
         if not args.quiet:
             print(f"\n=== {slug}（{part.get('title_en') or ''}）p{part.get('page_start')}-{part.get('page_end')} ===")
@@ -199,7 +202,7 @@ def main() -> int:
 
         translator = mt.Translator(book, cfg, logger=(lambda *a: None) if args.quiet else print)
         started = time.time()
-        translations, results = translator.translate_part(part, blocks)
+        translations, results = translator.translate_part(part, blocks, limit=args.limit)
         elapsed = time.time() - started
 
         lines = markdown_for(blocks, translations, args.limit)

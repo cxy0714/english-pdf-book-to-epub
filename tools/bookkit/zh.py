@@ -130,6 +130,22 @@ def normalize(text: str) -> str:
 # ---------------------------------------------------------------------------
 # 质检
 # ---------------------------------------------------------------------------
+# `glossary.json` 的 avoid 段形如 {"mechanism": "机制（不要译成“机理”）"}：
+# 键是英文词，值是「正确译法 + 不要用的译法」。真正要抓的是引号里那个坏译法。
+AVOID_VARIANT_RE = re.compile(r"不要(?:一律)?译成[“\"「]([^”\"」]+)[”\"」]")
+
+
+def avoid_variants(glossary: dict | None) -> list[tuple[str, str]]:
+    """从 avoid 段解析出 (英文词, 不要用的译法) 列表。"""
+    pairs: list[tuple[str, str]] = []
+    for english, note in (glossary or {}).get("avoid", {}).items():
+        if isinstance(note, str):
+            pairs.extend((english, variant) for variant in AVOID_VARIANT_RE.findall(note))
+        elif isinstance(note, (list, tuple)):
+            pairs.extend((english, str(item)) for item in note)
+    return pairs
+
+
 def lint(text: str, source: str = "", glossary: dict | None = None) -> list[str]:
     """检查一段译文，返回问题描述列表（可读中文，供报告直接使用）。"""
     issues: list[str] = []
@@ -160,9 +176,9 @@ def lint(text: str, source: str = "", glossary: dict | None = None) -> list[str]
         issues.append(f"译文过短（原文 {source_words} 词，译文 {cjk_chars} 汉字）")
 
     if glossary:
-        for word in glossary.get("avoid") or []:
-            if word and word in text:
-                issues.append(f"用了避免用词「{word}」")
+        for english, variant in avoid_variants(glossary):
+            if variant and variant in text:
+                issues.append(f"用了避免译法「{variant}」（{english}）")
         keep_english = {str(item).lower() for item in (glossary.get("keep_english") or [])}
         for english, chinese in (glossary.get("terms") or {}).items():
             if not english or not chinese or english.lower() in keep_english:
