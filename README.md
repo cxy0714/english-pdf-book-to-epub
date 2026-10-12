@@ -52,8 +52,9 @@ tools/
   normalize_zh.py        译文标点/空格规范化（不联网，可反复跑）
   lint_zh.py             译文质检：未译、术语漏译、标点不配对、译文过短
   apply_zh.py            逐章人工校订：导出译文 JSON、写回（带规范化与质检）
+  review_zh.py           让模型审校译文：只挑必须改的问题，不改译文
   selftest.py            不依赖书数据的自检（含校验器的反例测试）
-  mt_selftest.py         用本地假接口跑通翻译客户端（请求/缓存/重试/拆批/回填）
+  mt_selftest.py         用本地假接口跑通翻译客户端（请求/缓存/重试/拆批/回填/审校/跨批语境）
   bookkit/               核心库（版面解析、文本规范化、翻译接口、EPUB 打包）
 ```
 
@@ -95,7 +96,10 @@ python tools/verify_all.py --expect-zh front,ch01
 python tools/normalize_zh.py
 python tools/lint_zh.py
 
-# 11. 逐章人工校订：导出 → 改 JSON → 写回（只动指定篇章）
+# 10b. 机械质检查不出漏译和生硬，再让模型读一遍、只挑必须改的问题（不改译文）
+python tools/review_zh.py --part ch03        # 报告写到 qa/review-ch03.txt
+
+# 11. 逐章人工校订：导出 → 改 JSON → 写回（只动指定篇章，未提到的块保持不变）
 python tools/apply_zh.py --part ch03 --export _scratch/ch03.zh.json
 python tools/apply_zh.py --part ch03 --from _scratch/ch03.zh.json
 

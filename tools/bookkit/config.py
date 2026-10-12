@@ -35,11 +35,15 @@ CONFIG_DIR = REPO_ROOT / "config"
 
 DEFAULT_MT: dict[str, Any] = {
     "base_url": "https://moyu.cn/v1",
-    "model": "deepseek-v4.1-flash",
+    "model": "DeepSeek-V4.1-flash",
     "api_key": "",
     "api_key_env": ["MOYU_API_KEY", "MT_API_KEY"],
     "temperature": 0.15,
-    "max_tokens": 8192,
+    # 输出预算要同时装下「思考」和「译文」。实测 DeepSeek-V4.1-flash 每次请求会先
+    # 花掉约 4k reasoning token（8 块小批次：out 4680，其中译文正文只占 ~700），
+    # 8192 的上限在整章一批（约 6.5k 汉字 ≈ 4.7k token）时会被思考挤爆、译文被截断，
+    # 于是缺 [Bn]、触发拆批重试。给足余量。
+    "max_tokens": 16384,
     "timeout": 600,
     "retries": 4,
     "concurrency": 3,
@@ -211,6 +215,11 @@ class Book:
                 if os.environ.get(env_name):
                     cfg["api_key"] = os.environ[env_name]
                     break
+        # 模板里的占位符是非空字符串，不识别的话会拿着 "PASTE_YOUR_..." 去请求真接口，
+        # 白跑几轮重试才报 401。认出来就当成没填。
+        key = str(cfg.get("api_key") or "").strip()
+        if key.upper().startswith(("PASTE_YOUR", "YOUR_", "TODO", "<")) or key.endswith("_HERE"):
+            cfg["api_key"] = ""
         if model:
             cfg["model"] = model
         return cfg

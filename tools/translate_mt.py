@@ -24,7 +24,7 @@ import time
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 
-from bookkit import mt  # noqa: E402
+from bookkit import mt, zh  # noqa: E402
 from bookkit.config import resolve_book  # noqa: E402
 
 
@@ -122,6 +122,11 @@ def main() -> int:
     parser.add_argument("--probe", action="store_true", help="只发一个测试请求，验证配置")
     parser.add_argument("--limit", type=int, help="每篇只译前 N 条（冒烟测试）")
     parser.add_argument("--force", action="store_true", help="忽略已有译文与缓存，重译")
+    parser.add_argument(
+        "--allow-overwrite",
+        action="store_true",
+        help="确认用 --mirror --force 覆盖已有中文译文（默认拦住，防止把手译/机译成果退回英文）",
+    )
     parser.add_argument("--model", help="临时覆盖模型名")
     parser.add_argument("--base-url", help="临时覆盖接口地址（自检用，如 http://127.0.0.1:8765/v1）")
     parser.add_argument("--concurrency", type=int, help="临时覆盖并发数")
@@ -138,6 +143,17 @@ def main() -> int:
     if args.probe:
         return probe(cfg)
 
+    # 排练与规划不需要 key；真翻译没有 key 就该立刻停，而不是先排好计划、
+    # 再拿着空 key 去撞 401 并等完四轮退避重试。
+    if not (args.mirror or args.dry_run) and not cfg.get("api_key"):
+        print(
+            "api_key 为空，无法真翻译。请在 config/mt.local.json 里填写，或设置环境变量 "
+            "MOYU_API_KEY / MT_API_KEY。\n"
+            "先用 python tools/translate_mt.py --dry-run 看规划（不需要 key），"
+            "或 --mirror 排练一遍全流程。"
+        )
+        return 2
+
     blocks_by_part = load_blocks(book)
     wanted = args.part or [part["slug"] for part in book.content_parts()]
     rows = ["篇章\t块数\t待译\t译文估算字数\t批数\t最大批\t耗时s\tprompt\tcompletion\t状态"]
@@ -147,18 +163,64 @@ def main() -> int:
     exit_code = 0
     zh_payload: dict[str, list[dict]] = {}
     zh_blocks_path = book.build_dir / "zh-blocks.json"
-    if zh_blocks_path.exists() and not args.force:
+    previous: dict[str, list[dict]] = {}
+    if zh_blocks_path.exists():
         existing = json.loads(zh_blocks_path.read_text(encoding="utf-8"))
-        zh_payload.update({part["slug"]: part["blocks"] for part in existing.get("parts", [])})
+        previous = {part["slug"]: part["blocks"] for part in existing.get("parts", [])}
+    # 没点名的篇章一律保留，**与 --force 无关**：--force 只表示「点名的篇章重译」，
+    # 若让它把整个文件重置成「本次点名的篇章」，那么
+    # `translate_mt.py --force --part ch05` 会静默删掉其余十三篇的译文。
+    zh_payload.update(previous)
+
+    # --force 会覆盖现有译文。真翻译时这是有意为之（重译），但 --mirror 把已译篇章
+    # 退回英文底本毫无意义，纯粹是手滑——这里直接拦住。
+    def existing_zh(slug: str) -> int:
+        return sum(1 for block in previous.get(slug, []) if zh.has_cjk(block.get("text") or ""))
+
+    risky = {slug: existing_zh(slug) for slug in wanted if existing_zh(slug)}
+    if risky and args.force and args.mirror and not args.allow_overwrite:
+        detail = "、".join(f"{slug} {count} 块" for slug, count in risky.items())
+        print(
+            f"--mirror 会把现有译文退回英文底本，将丢掉中文：{detail}。\n"
+            "如果只是要排练流程，去掉 --force 即可（保留现有译文）；确实要覆盖请加 --allow-overwrite。"
+        )
+        return 2
+    if risky and args.force and not args.mirror:
+        detail = "、".join(f"{slug} {count} 块" for slug, count in risky.items())
+        print(f"注意：--force 会用新译文覆盖现有中文（{detail}）")
 
     for slug in wanted:
         part = book.part(slug)
         blocks = blocks_by_part.get(slug) or []
-        translatable = [i for i, block in enumerate(blocks) if mt.is_translatable(block)]
+        # 已经有中文的块不重译（除非 --force）。判断依据是**有没有汉字**，不是
+        # 「zh-blocks.json 里有没有这一篇」：mirror 排练产物是整篇英文，按条目判断
+        # 会让真跑把每一篇都当成"已有译文"直接跳过。
+        done_texts = {
+            index: (item.get("text") or "")
+            for index, item in enumerate(previous.get(slug, []))
+            if index < len(blocks) and zh.has_cjk(item.get("text") or "")
+        }
+        if args.force:
+            done_texts = {}
+        # 已译块标记成不译，而不是从列表里删掉：块下标与前后文语境都必须保持原样，
+        # 否则计划、回填、对齐全都会错位。
+        working = [
+            ({**block, "no_translate": True} if index in done_texts else block)
+            for index, block in enumerate(blocks)
+        ]
+        translatable = [i for i, block in enumerate(working) if mt.is_translatable(block)]
         if args.limit:
             translatable = translatable[: args.limit]
         estimated = sum(mt.estimate_zh(blocks[i]["text"]) for i in translatable)
-        plan = mt.plan_batches(blocks, cfg, limit=args.limit)
+        plan = mt.plan_batches(working, cfg, limit=args.limit)
+
+        if done_texts and not args.quiet:
+            print(f"  已有译文 {len(done_texts)} 块，本次续译 {len(translatable)} 块（全部重译用 --force）")
+        if not translatable and not args.mirror and not args.dry_run:
+            if not args.quiet:
+                print(f"  本篇没有待译块，跳过")
+            rows.append(f"{slug}\t{len(blocks)}\t0\t0\t0\t-\t-\t-\t-\t已译完")
+            continue
 
         if not args.quiet:
             print(f"\n=== {slug}（{part.get('title_en') or ''}）p{part.get('page_start')}-{part.get('page_end')} ===")
@@ -173,7 +235,7 @@ def main() -> int:
         if args.dry_run:
             # 用与实际发送完全相同的规划逻辑（含按输入上限拆批），
             # 免得「规划时看着没问题、真发出去被接口拒掉」。
-            sized = mt.plan_requests(book, part, blocks, cfg, limit=args.limit)
+            sized = mt.plan_requests(book, part, working, cfg, limit=args.limit)
             budget = int(cfg.get("max_input_chars") or 0)
             if not args.quiet:
                 print(f"  实际请求 {len(sized)} 个（按输入上限 {budget} 字符拆批后）")
@@ -212,22 +274,17 @@ def main() -> int:
             continue
 
         zh_path = book.zh_md(slug)
-        if zh_path.exists() and not args.force:
-            existing = zh_path.read_text(encoding="utf-8").count("\n\n")
-            if existing + 1 >= len(blocks):
-                if not args.quiet:
-                    print(f"  已有译文（{existing + 1} 块），跳过；要重译用 --force")
-                rows.append(f"{slug}\t{len(blocks)}\t{len(translatable)}\t{estimated}\t{len(plan)}\t-\t-\t-\t-\t已存在")
-                continue
-
         translator = mt.Translator(book, cfg, logger=(lambda *a: None) if args.quiet else print)
         started = time.time()
-        translations, results = translator.translate_part(part, blocks, limit=args.limit)
+        translations, results = translator.translate_part(part, working, limit=args.limit)
         elapsed = time.time() - started
 
-        lines = markdown_for(blocks, translations, args.limit)
+        # 续译：把这次得到的译文合并到已有译文上，其余块保持原样（未译块输出英文底本）
+        merged = dict(done_texts)
+        merged.update(translations)
+        lines = markdown_for(blocks, merged, None)
         zh_path.write_text("\n\n".join(lines) + "\n", encoding="utf-8")
-        zh_payload[slug] = zh_blocks_for(blocks, translations)
+        zh_payload[slug] = zh_blocks_for(blocks, merged)
 
         failed = [result for result in results if result.error]
         if failed:

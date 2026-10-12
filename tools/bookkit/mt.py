@@ -245,17 +245,27 @@ WORD_BOUNDARY = r"(?<![A-Za-z]){}(?![A-Za-z])"
 
 
 def glossary_hits(glossary: dict[str, Any], text: str) -> dict[str, int]:
-    """统计术语表里哪些条目在该文本中出现了，返回 ``{条目: 出现次数}``。"""
+    """统计术语表里哪些条目在该文本中出现了，返回 ``{条目: 出现次数}``。
+
+    全大写条目（US、FCC、PCS…）**区分大小写**：不区分的话，英文里常见的 "us"
+    （"let us consider"）会命中「US => 美国」，等于往提示词里塞了一条错提示，
+    模型真有可能把 us 译成"美国"。
+    """
     hits: dict[str, int] = {}
     if not text:
         return hits
+
+    def count(key: str) -> int:
+        flags = 0 if key.isupper() else re.IGNORECASE
+        return len(re.findall(WORD_BOUNDARY.format(re.escape(key)), text, flags))
+
     for section in ("terms", "names", "avoid"):
         for key in (glossary.get(section) or {}):
-            found = re.findall(WORD_BOUNDARY.format(re.escape(key)), text, re.IGNORECASE)
+            found = count(str(key))
             if found:
-                hits[key] = len(found)
+                hits[key] = found
     for key in glossary.get("keep_english") or []:
-        if re.search(WORD_BOUNDARY.format(re.escape(str(key))), text, re.IGNORECASE):
+        if count(str(key)):
             hits[str(key)] = 1
     return hits
 
@@ -414,6 +424,10 @@ def build_prompt(
         elif block["type"] == "list":
             tag = "（列表项）"
         lines.append(f"[B{item.number}]{tag} {masked}")
+    lines.append(
+        "【输出要求】每条只输出译文本身，行首不要重复类型标记（（标题）（脚注）（图题）（列表项）是给"
+        "你看的，不是译文的一部分），也不要输出任何解释或总结。"
+    )
     pieces.append("\n".join(lines))
 
     system = SYSTEM_PROMPT
@@ -424,6 +438,11 @@ def build_prompt(
 
 MARKER_RE = re.compile(r"^\s*\[\s*B\s*(\d+)\s*\]\s*(.*)$")
 FENCE_RE = re.compile(r"^\s*```")
+# 行首的类型标记是给模型看的元信息（（标题）（脚注）…）。模型有时会把它照抄进译文，
+# 那就成了成书里的正文——必须剥掉。中文括号与方括号两种写法都认。
+TYPE_TAG_RE = re.compile(
+    r"^\s*[（(\[【]?\s*(标题|脚注|图题|列表项|列表|篇章|正文|公式|表格行|来源)\s*[）)\]】]\s*[:：]?\s*"
+)
 
 
 def parse_response(text: str, expected: list[int]) -> tuple[dict[int, str], list[int]]:
@@ -445,7 +464,7 @@ def parse_response(text: str, expected: list[int]) -> tuple[dict[int, str], list
                 joined += " "
             joined += piece
         if joined:
-            result[current] = joined
+            result[current] = TYPE_TAG_RE.sub("", joined)
 
     for line in cleaned.splitlines():
         match = MARKER_RE.match(line)
@@ -507,6 +526,99 @@ def cache_key(cfg: dict[str, Any], prompt: Prompt) -> str:
     digest.update(prompt.system.encode("utf-8"))
     digest.update(prompt.user.encode("utf-8"))
     return digest.hexdigest()[:20]
+
+
+REVIEW_SYSTEM = """你是资深中英学术翻译审校。用户给你若干条【英文原文 + 现有中文译文】。
+
+只做一件事：**指出必须改的问题**，不要重译、不要改写、不要给"更好的译法"全文。
+
+要挑的问题，按严重程度：
+1. 漏译（原文有、译文没有）或明显误译、意思译反；
+2. 术语与给定术语表不一致，或同一术语在前后文里译法不统一；
+3. 数字、单位、人名、年份、引用编号、公式符号与原文不符；
+4. 中文不通顺、生硬到影响理解，或指代不清（"它/这"指不明白）；
+5. 译文里混入了不该有的东西（原英文整句照抄、占位符残留）。
+
+不要挑：风格偏好、可以更好的表达、无伤大雅的标点。
+每条问题一句话说清，不超过 40 字。
+
+输出格式：每条一行，以 [B编号] 开头，编号用给你的编号。某条没问题就不要输出它。
+只输出问题行，不要任何前言、总结或解释。若全部没问题，只输出 NOISSUES。"""
+
+
+def build_review_prompt(
+    book,
+    part: dict,
+    items: list[tuple[int, str, str]],
+    glossary: dict[str, Any],
+    cfg: dict[str, Any],
+    style: str = "",
+) -> Prompt:
+    """组装一次审校请求。``items`` 是 ``(块下标, 英文, 中文)``。"""
+    pieces: list[str] = []
+    pieces.append(f"【书籍】{book.title_en}（{book.title_zh}），{book.author}")
+    pieces.append(f"【当前篇章】{part.get('title_en') or part['slug']}")
+    relevant_text = "\n".join(f"{en}\n{zh_text}" for _, en, zh_text in items)
+    if cfg.get("glossary_in_prompt", True):
+        text = format_glossary(glossary, relevant=relevant_text)
+        if text:
+            pieces.append(text)
+    lines = [f"【待审条目】共 {len(items)} 条。只指出必须改的问题，按 [B编号] 输出。"]
+    for number, (_, en, zh) in enumerate(items, start=1):
+        lines.append("")
+        lines.append(f"[B{number}]")
+        lines.append(f"  原：{en[:2000]}")
+        lines.append(f"  译：{zh[:2000]}")
+    pieces.append("\n".join(lines))
+    system = REVIEW_SYSTEM
+    if style:
+        system = f"{style}\n\n{system}"
+    return Prompt(system=system, user="\n".join(pieces), store={})
+
+
+REVIEW_LINE_RE = re.compile(r"^\[\s*B\s*(\d+)\s*\]\s*(.+)$")
+REVIEW_NOISSUE = "NOISSUES"
+
+
+def parse_review(text: str, expected: list[int]) -> dict[int, list[str]]:
+    """解析审校输出：``{批内编号: [问题, …]}``。编号不在 expected 里的一律忽略。"""
+    issues: dict[int, list[str]] = {}
+    if not text or REVIEW_NOISSUE in text.upper():
+        return issues
+    for raw in text.splitlines():
+        line = raw.strip()
+        if not line:
+            continue
+        match = REVIEW_LINE_RE.match(line)
+        if not match:
+            # 没编号的行并进上一条问题的续行
+            if issues and list(issues)[-1] in issues:
+                last = list(issues)[-1]
+                issues[last][-1] = (issues[last][-1] + " " + line)[:300]
+            continue
+        number = int(match.group(1))
+        if number not in expected:
+            continue
+        issues.setdefault(number, []).append(match.group(2).strip()[:300])
+    return issues
+
+
+def review_batches(items: list[tuple[int, str, str]], cfg: dict[str, Any]) -> list[list[tuple[int, str, str]]]:
+    """按原文长度切审校批（审校的输入比翻译更省：不带前后文、不要求重译输出）。"""
+    budget = int(cfg.get("review_batch_chars", 12000))
+    batches: list[list[tuple[int, str, str]]] = []
+    current: list[tuple[int, str, str]] = []
+    size = 0
+    for item in items:
+        length = len(item[1]) + len(item[2])
+        if current and size + length > budget:
+            batches.append(current)
+            current, size = [], 0
+        current.append(item)
+        size += length
+    if current:
+        batches.append(current)
+    return batches
 
 
 def merge_partial(existing: dict[int, str], patch: dict[int, str]) -> dict[int, str]:
@@ -680,13 +792,84 @@ class Translator:
                 absorb(result)
         return merged, results
 
+    # --- 审校 -----------------------------------------------------------
+    def review_part(
+        self, part: dict, blocks: list[dict], zh_texts: dict[int, str], limit: int | None = None
+    ) -> tuple[dict[int, list[str]], int]:
+        """让模型只挑错不重译，返回 ``({块下标: [问题]}, 实际审了几块)``。
+
+        与翻译的区别：不需要 1:1 完整返回（少一条只意味着那条没问题），所以不走拆批
+        那套；但同样走缓存与重试。没有中文译文的块直接跳过——未译是已知事实，
+        让模型再报一遍纯属浪费。
+        """
+        items: list[tuple[int, str, str]] = []
+        for index, block in enumerate(blocks):
+            if not is_translatable(block):
+                continue
+            zh_text = zh_texts.get(index) or ""
+            if not zh.has_cjk(zh_text):
+                continue
+            items.append((index, block.get("text") or "", zh_text))
+        if limit:
+            items = items[:limit]
+        result: dict[int, list[str]] = {}
+        if not items:
+            return result, 0
+        batches = review_batches(items, self.cfg)
+        for number, batch in enumerate(batches, start=1):
+            prompt = build_review_prompt(
+                self.book, part, batch, self.glossary, self.cfg, self.style
+            )
+            key = cache_key(self.cfg, prompt)
+            cache_path = self.cache_dir / f"review-{key}.json"
+            expected = list(range(1, len(batch) + 1))
+            self.log(f"  审校批 {number}/{len(batches)}：{len(batch)} 条")
+            if cache_path.exists():
+                data = json.loads(cache_path.read_text(encoding="utf-8"))
+                raw = {int(k): v for k, v in data["issues"].items()}
+            else:
+                raw = self._review_request(prompt, expected, cache_path)
+            for local, problems in raw.items():
+                index = batch[local - 1][0]
+                result.setdefault(index, []).extend(problems)
+        return result, len(items)
+
+    def _review_request(self, prompt: Prompt, expected: list[int], cache_path: pathlib.Path) -> dict[int, list[str]]:
+        last_error = ""
+        for attempt in range(1, int(self.cfg.get("retries", 4)) + 1):
+            try:
+                content, usage = chat(self.cfg, prompt.messages())
+                self.stats["requests"] += 1
+                self.stats["prompt_tokens"] += int(usage.get("prompt_tokens") or 0)
+                self.stats["completion_tokens"] += int(usage.get("completion_tokens") or 0)
+                issues = parse_review(content, expected)
+                cache_path.write_text(
+                    json.dumps({"issues": {str(k): v for k, v in issues.items()}}, ensure_ascii=False, indent=1),
+                    encoding="utf-8",
+                )
+                return issues
+            except MTError as error:
+                last_error = str(error)
+                if attempt >= int(self.cfg.get("retries", 4)):
+                    break
+                wait = min(2 ** attempt, 30)
+                self.log(f"    ! 审校第 {attempt} 次失败：{last_error[:120]}；{wait}s 后重试")
+                time.sleep(wait)
+        self.log(f"    ! 审校放弃：{last_error[:120]}")
+        return {}
+
     def log_result(self, result: BatchResult, prefix: str = "  ") -> None:
         if result.error:
             self.log(f"{prefix} 失败：{result.error[:160]}")
             return
         token_note = ""
         if result.usage:
-            token_note = f"，in {result.usage.get('prompt_tokens', '?')} / out {result.usage.get('completion_tokens', '?')} tokens"
+            reasoning = (result.usage.get("completion_tokens_details") or {}).get("reasoning_tokens")
+            reasoning_note = f"，其中思考 {reasoning}" if reasoning else ""
+            token_note = (
+                f"，in {result.usage.get('prompt_tokens', '?')} / "
+                f"out {result.usage.get('completion_tokens', '?')} tokens{reasoning_note}"
+            )
         self.log(
             f"{prefix} {'命中缓存' if result.cached else f'{result.seconds:.1f}s'}，"
             f"译出 {len(result.translations)} 条{token_note}"

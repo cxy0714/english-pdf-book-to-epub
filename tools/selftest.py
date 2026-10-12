@@ -149,6 +149,23 @@ def main() -> int:
         "改一段不该让整章退回英文",
     )
 
+    print("类型标记不该混进译文")
+    parsed, _ = mt.parse_response("[B1]（标题）第1章 开始工作\n[B2]（脚注）见前注。\n", [1, 2])
+    check("剥掉行首类型标记", parsed[1] == "第1章 开始工作", parsed[1])
+    check("脚注标记也剥掉", parsed[2] == "见前注。", parsed[2])
+    check(
+        "正文里的括号不受影响",
+        mt.parse_response("[B1] 拍卖（英文 auction）很有效。", [1])[0][1] == "拍卖（英文 auction）很有效。",
+    )
+
+    print("术语命中区分大小写")
+    glossary = {"terms": {"US": "美国", "auction": "拍卖"}, "keep_english": ["FCC", "Sky"]}
+    hits = mt.glossary_hits(glossary, "Let us consider the US auction market, not fcc either.")
+    check("全大写条目只在原样出现时命中", hits.get("US") == 1, str(hits))
+    check("小写 us 不会误命中 US", "us" not in {k.lower() for k in hits} - {"us"}, str(sorted(hits)))
+    check("小写单词条目仍然不区分大小写", hits.get("auction") == 1, str(hits))
+    check("keep_english 也不误命中", "fcc" not in hits, str(sorted(hits)))
+
     root = pathlib.Path(tempfile.mkdtemp(prefix="bookkit-selftest-"))
     try:
         book = StubBook(root)

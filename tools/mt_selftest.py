@@ -64,6 +64,7 @@ class Handler(http.server.BaseHTTPRequestHandler):
             return
 
         user = payload["messages"][-1]["content"]
+        review = "【待审条目】" in user
         lines: list[str] = []
         first_request = len(STATE.requests) == 1
         for number, text in ITEM_RE.findall(user):
@@ -71,9 +72,16 @@ class Handler(http.server.BaseHTTPRequestHandler):
             # 用来验证客户端「缺条目 → 拆批重试」能自愈
             if STATE.mode == "missing" and first_request and int(number) % 3 == 0:
                 continue
+            if review:
+                # 模拟审校：每 3 条报一个问题；其余条目不报（= 没问题）
+                if int(number) % 3 == 0:
+                    lines.append(f"[B{number}] 术语不一致：auction 这里没译成「拍卖」")
+                continue
             # 回显源文（保留占位符），便于断言「译文确实回填到了正确的块」
             # 且「占位符能原样还原」
             lines.append(f"[B{number}] 【译】{text.strip()[:200]}。")
+        if review and not lines:
+            lines = ["NOISSUES"]
         content = "\n".join(lines) if lines else "[B1] 【译】空。"
         self._send(
             200,
@@ -175,6 +183,11 @@ def end_to_end(base_url: str) -> None:
     backups = {path: (path.read_bytes() if path.exists() else None) for path in targets}
     blocks_payload = json.loads((book.build_dir / "blocks.json").read_text(encoding="utf-8"))
     front = next(part for part in blocks_payload["parts"] if part["slug"] == "front")
+    before = {}
+    if zh_blocks.exists():
+        before = {
+            part["slug"] for part in json.loads(zh_blocks.read_text(encoding="utf-8")).get("parts", [])
+        }
     try:
         saved_argv = sys.argv
         sys.argv = [
@@ -189,6 +202,14 @@ def end_to_end(base_url: str) -> None:
         payload = json.loads(zh_blocks.read_text(encoding="utf-8"))
         written = next((part for part in payload["parts"] if part["slug"] == "front"), None)
         check("CLI 写出了 front 的逐块译文", written is not None)
+        # --force 只表示「点名的篇章重译」，不能把没点名的篇章从 zh-blocks.json 里删掉。
+        # 真踩过：--force --part front 跑完，其余十三篇的译文全没了。
+        missing = before - {part["slug"] for part in payload["parts"]}
+        check(
+            "--force --part 不会删掉其他篇章",
+            not missing,
+            f"丢了 {sorted(missing)}",
+        )
         if written is None:
             return
         blocks = written["blocks"]
@@ -365,6 +386,51 @@ def main() -> int:
             any("并发由 3 降为 1" in line for line in logs),
             f"日志里没有降并发提示：{logs[:3]}",
         )
+
+        print("审校（只挑错、不重译）")
+        parsed_review = mt.parse_review(
+            "[B2] 漏译了半句\n[B3] 数字不符：原文 1994，译文 1984\n续行补充\n[ B9 ] 超范围要忽略\n",
+            [1, 2, 3],
+        )
+        check("审校按编号归位", set(parsed_review) == {2, 3}, str(parsed_review))
+        check("审校续行并进上一条", "续行补充" in parsed_review.get(3, [""])[0], str(parsed_review))
+        check("审校忽略越界编号", 9 not in parsed_review)
+        check("NOISSUES 表示没问题", mt.parse_review("NOISSUES", [1, 2]) == {})
+        check("空响应不报错", mt.parse_review("", [1]) == {})
+
+        review_items = [
+            (0, "a " * 40, "甲" * 40),
+            (1, "b " * 40, "乙" * 40),
+            (2, "c " * 40, "丙" * 40),
+            (3, "d " * 40, "丁" * 40),
+        ]
+        check(
+            "审校按长度切批",
+            len(mt.review_batches(review_items, {"review_batch_chars": 200})) > 1,
+            str(len(mt.review_batches(review_items, {"review_batch_chars": 200}))),
+        )
+
+        STATE.reset()
+        translator5 = mt.Translator(book, cfg, logger=lambda *a: None)
+        translator5.cache_dir = root / "cache5"
+        translator5.cache_dir.mkdir(parents=True, exist_ok=True)
+        review_part, review_blocks = sample()
+        # 只给前两个可译块中文，第三块留空：空的应被跳过
+        zh_texts = {0: "第零块中文", 1: "第一块中文", 4: "第四块中文"}
+        issues, reviewed = translator5.review_part(review_part, review_blocks, zh_texts)
+        review_prompt = STATE.requests[0]["messages"][-1]["content"]
+        check("只审有中文的块", reviewed == 3, f"审了 {reviewed} 块")
+        check("没有中文的块不进审校请求", "阈值" not in review_prompt and "efficient" not in review_prompt)
+        check("审校请求带术语表", "米尔格罗姆" in review_prompt, "被审的块里有 Milgrom，人名表该带上")
+        check("审校请求含原文与译文对照", "原：" in review_prompt and "译：" in review_prompt)
+        check("问题按块下标归位", set(issues) <= {0, 1, 4}, str(sorted(issues)))
+        check("模拟的第 3 条问题落在第 4 块", 4 in issues, str(sorted(issues)))
+        check("问题内容取到了", any("术语不一致" in item for items in issues.values() for item in items), str(issues))
+
+        STATE.reset()
+        cached_issues, cached_reviewed = translator5.review_part(review_part, review_blocks, zh_texts)
+        check("审校命中缓存", len(STATE.requests) == 0, f"{len(STATE.requests)} 个请求")
+        check("缓存返回同样结果", cached_issues == issues)
 
         print("端到端（真跑一次 CLI，用假接口）")
         end_to_end(base_url)
