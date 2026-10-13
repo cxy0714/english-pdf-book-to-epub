@@ -33,6 +33,10 @@ def render_pair(pair: pairing.Pair, mode: str) -> list[str]:
     kind = pair.type
     zh, en = pair.zh_text, pair.en_text
 
+    if pair.en.get("absorbed") or (not zh and not en and not pair.image):
+        # 被公式裁图吸收掉的碎片块：内容已经在图的 alt 里，正文不再重复印
+        return []
+
     if kind in ("part", "heading"):
         heading = zh if mode != "en" else en
         lines = [f"{'#' * min(6, max(1, pair.level))} {heading}"]
@@ -57,6 +61,9 @@ def render_pair(pair: pairing.Pair, mode: str) -> list[str]:
     if kind == "figure":
         return [f"![{pair.en.get('meta', {}).get('alt', 'figure')}]({pair.image})"]
     if kind == "equation":
+        if pair.image:
+            alt = " ".join(en.split())[:120] or "formula"
+            return [f"![{alt}]({pair.image})"]
         return [f"$$ {en} $$"]
     if kind == "row":
         return [en]

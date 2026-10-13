@@ -71,6 +71,8 @@ li { margin: 0 0 0.35em; }
 li .en { color: #555; font-size: 0.86em; display: block; }
 figure { margin: 1em 0; text-align: center; page-break-inside: avoid; }
 figure img { max-width: 100%; height: auto; }
+figure.eq-img { margin: 0.8em 0; }
+figure.eq-img img { max-width: 96%; }
 figcaption { font-size: 0.85em; color: #444; margin-top: 0.3em; text-align: left; }
 table { border-collapse: collapse; margin: 0.8em 0; font-size: 0.85em; width: 100%; }
 th, td { border: 1px solid #999; padding: 0.15em 0.4em; text-align: left; }
@@ -150,6 +152,9 @@ def render_part(part: Part, mode: str) -> Rendered:
         index += 1
         kind = pair.type
         anchor = f"h{index}"
+        if pair.en.get("absorbed") or (not pair.zh_text and not pair.en_text and not pair.image):
+            # 被公式裁图吸收掉的碎片块：内容已在图的 alt 里，不再单独排版
+            continue
         if kind == "row":
             rows.append(pair)
             continue
@@ -184,7 +189,17 @@ def render_part(part: Part, mode: str) -> Rendered:
                 f"</figure>"
             )
         elif kind == "equation":
-            out.append(f'<div class="eq"{EN_ATTR}>{inline(pair.en_text, mode)}</div>')
+            if pair.image:
+                # 展示公式改成了 PDF 裁图：源 PDF 的公式文本层是残缺的（积分号是字体私有
+                # 码位、上下限与分式各占一行），只有裁图能还原原书排版
+                alt = " ".join(pair.en_text.split())[:120] or "formula"
+                src = pair.image.split("/")[-1]
+                out.append(
+                    f'<figure class="eq-img"><img src="images/{html.escape(src)}" '
+                    f'alt="{html.escape(alt)}"/></figure>'
+                )
+            elif pair.en_text:
+                out.append(f'<div class="eq"{EN_ATTR}>{inline(pair.en_text, mode)}</div>')
         elif kind == "note":
             continue  # 篇末统一排
         else:
@@ -254,7 +269,7 @@ def build(
     image_names: list[str] = []
     for part in parts:
         for pair in part.pairs:
-            if pair.type == "figure" and pair.image:
+            if pair.image and pair.type in ("figure", "equation"):
                 source = book.out_dir / pair.image
                 if source.exists():
                     name = pair.image.split("/")[-1]

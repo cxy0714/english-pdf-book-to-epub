@@ -83,6 +83,18 @@ class Line:
         return int(round(self.y0 / 1.6))
 
 
+def lines_bbox(lines: list[Line]) -> list[float]:
+    """若干行的并集外框（用来给块记 bbox）。"""
+    if not lines:
+        return []
+    return [
+        min(line.x0 for line in lines),
+        min(line.y0 for line in lines),
+        max(line.x1 for line in lines),
+        max(line.y1 for line in lines),
+    ]
+
+
 @dataclasses.dataclass
 class Block:
     type: str  # part / heading / paragraph / list / caption / source / row / figure / equation / note
@@ -94,6 +106,8 @@ class Block:
     number: int = 0
     no_translate: bool = False
     meta: dict = dataclasses.field(default_factory=dict)
+    # 该块在 PDF 上的外框 [x0, y0, x1, y1]（pt）。公式裁图要用它，所以随块一起存下来。
+    bbox: list[float] = dataclasses.field(default_factory=list)
 
     def to_dict(self) -> dict:
         data = {
@@ -110,6 +124,8 @@ class Block:
             data["number"] = self.number
         if self.no_translate:
             data["no_translate"] = True
+        if self.bbox:
+            data["bbox"] = [round(value, 1) for value in self.bbox]
         if self.meta:
             data["meta"] = self.meta
         return data
@@ -786,6 +802,7 @@ class Extractor:
                         buffer[0].page,
                         slug,
                         no_translate=no_translate or reference_section,
+                        bbox=lines_bbox(buffer),
                     )
                 )
             buffer = []
@@ -805,6 +822,7 @@ class Extractor:
                         list_buffer[0].page,
                         slug,
                         no_translate=no_translate or reference_section,
+                        bbox=lines_bbox(list_buffer),
                     )
                 )
             list_buffer = []
@@ -828,7 +846,8 @@ class Extractor:
                     hanging = hanging or reference_section
                     level = max(2, min(6, 2 + max(0, entry["level"] - part.get("chapter_level", 1))))
                     out.append(Block("heading", title, page_no, slug, level=level,
-                                     no_translate=no_translate or reference_section))
+                                     no_translate=no_translate or reference_section,
+                                     bbox=lines_bbox([line])))
                     continue
 
                 if key in captions:
@@ -842,7 +861,8 @@ class Extractor:
                             figure_done.add(figure["id"])
                     kind = "source" if SOURCE_RE.match(text) else "caption"
                     out.append(Block(kind, text, page_no, slug,
-                                     no_translate=no_translate or reference_section))
+                                     no_translate=no_translate or reference_section,
+                                     bbox=lines_bbox([line])))
                     continue
 
                 ykey = line.ykey
@@ -872,7 +892,8 @@ class Extractor:
                         continue
                     flush_paragraph()
                     out.append(Block("equation", tn.tidy_math(marked.get(key, line.text)),
-                                     page_no, slug, no_translate=True))
+                                     page_no, slug, no_translate=True,
+                                     bbox=lines_bbox([line])))
                     continue
 
                 # 列表项（项目符号用 LCIRCLE10 之类的符号字体，续行缩进更深）
